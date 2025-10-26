@@ -30,6 +30,14 @@ app.use((req, res, next) => {
   next();
 });
 
+// Connect to MongoDB on each request (for serverless environments)
+app.use(async (req, res, next) => {
+  if (mongoose.connection.readyState === 0) {
+    await connectDB();
+  }
+  next();
+});
+
 // Health check endpoint
 app.get('/health', (req, res) => {
   res.json({
@@ -56,6 +64,12 @@ app.use(errorHandler);
 // MongoDB connection
 const connectDB = async () => {
   try {
+    // Check if already connected (for serverless environments like Vercel)
+    if (mongoose.connection.readyState === 1) {
+      console.log('✅ Using existing MongoDB connection');
+      return;
+    }
+
     const conn = await mongoose.connect(process.env.MONGODB_URI, {
       useNewUrlParser: true,
       useUnifiedTopology: true,
@@ -63,8 +77,10 @@ const connectDB = async () => {
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     
-    // Seed admin user after successful connection
-    await seedAdmin();
+    // Seed admin user after successful connection (only in non-Vercel environment)
+    if (process.env.VERCEL !== '1') {
+      await seedAdmin();
+    }
   } catch (error) {
     console.error('❌ MongoDB connection error:', error);
     process.exit(1);
@@ -117,7 +133,10 @@ process.on('SIGINT', () => {
   });
 });
 
-// Start the server
-startServer();
+// Only start the server if not in Vercel environment
+// Vercel handles serverless invocation automatically
+if (process.env.VERCEL !== '1') {
+  startServer();
+}
 
 module.exports = app;
