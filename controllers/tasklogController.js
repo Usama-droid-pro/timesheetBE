@@ -95,8 +95,54 @@ const getSingleTaskLog = async (req, res) => {
   }
 };
 
+/**
+ * PUT /api/tasklogs/:id
+ * Update task log by ID
+ */
+const updateTaskLogById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { totalHours, tasks } = req.body;
+
+    // Basic validation
+    if (totalHours === undefined && !tasks) {
+      return sendError(res, 'At least one field (totalHours or tasks) is required for update');
+    }
+
+    if (tasks) {
+      if (!Array.isArray(tasks) || tasks.length === 0) {
+        return sendError(res, 'Tasks must be a non-empty array');
+      }
+
+      // Validate each task
+      for (const task of tasks) {
+        if (!task.project_name || task.hours === undefined) {
+          return sendError(res, 'Each task must have project_name and hours');
+        }
+        if (task.hours < 0 || task.hours > 24) {
+          return sendError(res, 'Task hours must be between 0 and 24');
+        }
+      }
+    }
+
+    const taskLog = await TaskLogService.updateTaskLogById(id, {
+      totalHours,
+      tasks
+    });
+    
+    return sendSuccess(res, 'Task log updated successfully', { taskLog }, 200);
+  } catch (error) {
+    console.error('Update task log error:', error);
+    if (error.message === 'Task log not found') {
+      return sendNotFound(res, error.message);
+    }
+    return sendError(res, error.message, null, 400);
+  }
+};
+
 module.exports = {
   createOrUpdateTaskLog,
   getTaskLogs,
-  getSingleTaskLog
+  getSingleTaskLog,
+  updateTaskLogById
 };
