@@ -145,8 +145,68 @@ const getSingleTaskLog = async (userId, date) => {
   }
 };
 
+/**
+ * Update task log by ID
+ */
+const updateTaskLogById = async (taskLogId, updateData) => {
+  try {
+    const { totalHours, tasks } = updateData;
+
+    // Validate each task if tasks array is provided
+    if (tasks) {
+      if (!Array.isArray(tasks) || tasks.length === 0) {
+        throw new Error('Tasks must be a non-empty array');
+      }
+
+      for (const task of tasks) {
+        if (!task.project_name || task.hours === undefined) {
+          throw new Error('Each task must have project_name and hours');
+        }
+        if (task.hours < 0 || task.hours > 24) {
+          throw new Error('Task hours must be between 0 and 24');
+        }
+      }
+    }
+
+    // Find and update the task log
+    const taskLog = await TaskLog.findById(taskLogId);
+
+    if (!taskLog) {
+      throw new Error('Task log not found');
+    }
+
+    if (taskLog.isDeleted) {
+      throw new Error('Task log has been deleted');
+    }
+
+    // Update fields if provided
+    if (totalHours !== undefined) {
+      taskLog.totalHours = totalHours;
+    }
+
+    if (tasks) {
+      taskLog.tasks = tasks;
+    }
+
+    await taskLog.save();
+
+    return {
+      id: taskLog._id,
+      userId: taskLog.userId,
+      date: taskLog.date,
+      totalHours: taskLog.totalHours,
+      tasks: taskLog.tasks,
+      createdAt: taskLog.createdAt,
+      updatedAt: taskLog.updatedAt
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
 module.exports = {
   createOrUpdateTaskLog,
   getTaskLogs,
-  getSingleTaskLog
+  getSingleTaskLog,
+  updateTaskLogById
 };
