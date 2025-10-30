@@ -126,9 +126,40 @@ const deleteUser = async (userId) => {
   }
 };
 
+/**
+ * Search users by name (returns only id, name, and role)
+ */
+const searchUsersByName = async (searchQuery) => {
+  try {
+    if (!searchQuery || searchQuery.trim().length === 0) {
+      return [];
+    }
+
+    // Use regex for case-insensitive partial matching on name
+    const searchRegex = new RegExp(searchQuery.trim(), 'i');
+
+    const users = await User.find({
+      isDeleted: false,
+      name: { $regex: searchRegex }
+    })
+      .select('name role')
+      .sort({ name: 1 })
+      .limit(50); // Limit results for performance
+
+    return users.map(user => ({
+      id: user._id,
+      name: user.name,
+      role: user.role
+    }));
+  } catch (error) {
+    throw error;
+  }
+};
+
 module.exports = {
   createUser,
   getAllUsers,
   updateUserPassword,
-  deleteUser
+  deleteUser,
+  searchUsersByName
 };
