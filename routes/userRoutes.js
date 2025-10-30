@@ -1,6 +1,6 @@
 const express = require('express');
-const { body, param } = require('express-validator');
-const { createUser, getAllUsers, updateUserPassword, deleteUser } = require('../controllers/userController');
+const { body, param, query } = require('express-validator');
+const { createUser, getAllUsers, updateUserPassword, deleteUser, searchUsersByName } = require('../controllers/userController');
 const { authMiddleware, adminMiddleware } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
@@ -37,6 +37,18 @@ router.get('/', [
   // authMiddleware,
   // adminMiddleware
 ], getAllUsers);
+
+/**
+ * GET /api/users/search
+ * Search users by name (returns only id, name, and role)
+ */
+router.get('/search', [
+  query('name')
+    .optional()
+    .trim()
+    .isLength({ min: 1 })
+    .withMessage('Name search query must be at least 1 character')
+], searchUsersByName);
 
 /**
  * PUT /api/users/:id/password
