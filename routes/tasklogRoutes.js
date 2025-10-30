@@ -1,6 +1,6 @@
 const express = require('express');
 const { body, query, param } = require('express-validator');
-const { createOrUpdateTaskLog, getTaskLogs, getSingleTaskLog, updateTaskLogById } = require('../controllers/tasklogController');
+const { createOrUpdateTaskLog, getTaskLogs, getSingleTaskLog, updateTaskLogById, deleteTaskLogById, getTaskLogByUserAndDate } = require('../controllers/tasklogController');
 const { authMiddleware } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
@@ -83,6 +83,20 @@ router.get('/single', [
 ], getSingleTaskLog);
 
 /**
+ * GET /api/tasklogs/by-user/:userId/date/:date
+ * Get single task log by userId and date (via URL params)
+ */
+router.get('/by-user/:userId/date/:date', [
+  // No authMiddleware - open to all users
+  param('userId')
+    .isMongoId()
+    .withMessage('Valid user ID is required'),
+  param('date')
+    .isISO8601()
+    .withMessage('Valid date is required')
+], getTaskLogByUserAndDate);
+
+/**
  * PUT /api/tasklogs/:id
  * Update task log by ID (Not Protected - Any user can update)
  */
@@ -118,5 +132,16 @@ router.put('/:id', [
     .isFloat({ min: 0, max: 24 })
     .withMessage('Hours must be between 0 and 24')
 ], updateTaskLogById);
+
+/**
+ * DELETE /api/tasklogs/:id
+ * Soft delete task log by ID (Not Protected - Any user can delete)
+ */
+router.delete('/:id', [
+  // No authMiddleware - open to all users
+  param('id')
+    .isMongoId()
+    .withMessage('Valid task log ID is required')
+], deleteTaskLogById);
 
 module.exports = router;
