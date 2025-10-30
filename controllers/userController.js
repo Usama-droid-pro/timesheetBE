@@ -77,9 +77,31 @@ const deleteUser = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/users/search
+ * Search users by name (returns only id, name, and role)
+ */
+const searchUsersByName = async (req, res) => {
+  try {
+    console.log("IN search by name ")
+    const { name } = req.query;
+    if (!name || name.trim().length === 0) {
+      return sendSuccess(res, 'Users retrieved successfully', { users: [] }, 200);
+    }
+
+    const users = await UserService.searchUsersByName(name);
+    
+    return sendSuccess(res, 'Users retrieved successfully', { users }, 200);
+  } catch (error) {
+    console.error('Search users error:', error);
+    return sendServerError(res, 'Failed to search users', error.message);
+  }
+};
+
 module.exports = {
   createUser,
   getAllUsers,
   updateUserPassword,
-  deleteUser
+  deleteUser,
+  searchUsersByName
 };
