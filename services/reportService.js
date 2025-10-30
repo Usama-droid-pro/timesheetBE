@@ -13,7 +13,6 @@ const { sendSuccess, sendError, sendServerError } = require('../utils/responseHa
  */
 const generateGrandReport = async (startDate, endDate) => {
   try {
-    // Build date filter
     const dateFilter = {};
     if (startDate) dateFilter.$gte = new Date(startDate);
     if (endDate) dateFilter.$lte = new Date(endDate);
@@ -132,6 +131,88 @@ const generateGrandReport = async (startDate, endDate) => {
   }
 };
 
+/**
+ * Generate project-user report for a date range
+ * Returns grand report data + users (id, name, role) + task logs in range
+ */
+const generateProjectUsersReport = async (startDate, endDate) => {
+  try {
+    // Grand report (projects + totals)
+    const grand = await generateGrandReport(startDate, endDate);
+
+    // Date filter
+    const dateFilter = {};
+    if (startDate) dateFilter.$gte = new Date(startDate);
+    if (endDate) dateFilter.$lte = new Date(endDate);
+
+    // Aggregation to group logs by user in a single query
+    const pipeline = [
+      {
+        $match: {
+          isDeleted: false,
+          ...(Object.keys(dateFilter).length > 0 && { date: dateFilter })
+        }
+      },
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'userId',
+          foreignField: '_id',
+          as: 'user'
+        }
+      },
+      { $unwind: '$user' },
+      {
+        $match: {
+          'user.isDeleted': false
+        }
+      },
+      {
+        $group: {
+          _id: {
+            userId: '$user._id',
+            name: '$user.name',
+            role: '$user.role'
+          },
+          logs: {
+            $push: {
+              id: '$_id',
+              date: '$date',
+              totalHours: '$totalHours',
+              tasks: '$tasks'
+            }
+          }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          userId: '$_id.userId',
+          name: '$_id.name',
+          role: '$_id.role',
+          logs: 1
+        }
+      },
+      { $sort: { name: 1 } }
+    ];
+
+    const usersLogs = await TaskLog.aggregate(pipeline);
+
+    return {
+      GrandReport: {
+        projects: grand.projects,
+        totals: grand.totals,
+        dateRange: grand.dateRange,
+        totalProjects: grand.totalProjects
+      },
+      usersLogs
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
 module.exports = {
-  generateGrandReport
+  generateGrandReport,
+  generateProjectUsersReport
 };
