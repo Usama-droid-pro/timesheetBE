@@ -204,9 +204,53 @@ const updateTaskLogById = async (taskLogId, updateData) => {
   }
 };
 
+/**
+ * Soft delete task log by ID
+ */
+const deleteTaskLogById = async (taskLogId) => {
+  try {
+    const taskLog = await TaskLog.findById(taskLogId);
+
+    if (!taskLog) {
+      throw new Error('Task log not found');
+    }
+
+    if (taskLog.isDeleted) {
+      // Idempotent delete: treat as success
+      return {
+        id: taskLog._id,
+        userId: taskLog.userId,
+        date: taskLog.date,
+        totalHours: taskLog.totalHours,
+        tasks: taskLog.tasks,
+        createdAt: taskLog.createdAt,
+        updatedAt: taskLog.updatedAt,
+        isDeleted: true
+      };
+    }
+
+    taskLog.isDeleted = true;
+    await taskLog.save();
+
+    return {
+      id: taskLog._id,
+      userId: taskLog.userId,
+      date: taskLog.date,
+      totalHours: taskLog.totalHours,
+      tasks: taskLog.tasks,
+      createdAt: taskLog.createdAt,
+      updatedAt: taskLog.updatedAt,
+      isDeleted: true
+    };
+  } catch (error) {
+    throw error;
+  }
+};
+
 module.exports = {
   createOrUpdateTaskLog,
   getTaskLogs,
   getSingleTaskLog,
-  updateTaskLogById
+  updateTaskLogById,
+  deleteTaskLogById
 };
