@@ -37,6 +37,34 @@ const generateGrandReport = async (req, res) => {
   }
 };
 
+/**
+ * GET /api/reports/project-users
+ * Generate project + users + tasklogs report for date range
+ */
+const generateProjectUsersReport = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+
+    if (startDate && isNaN(Date.parse(startDate))) {
+      return sendError(res, 'Invalid startDate format. Use YYYY-MM-DD');
+    }
+    if (endDate && isNaN(Date.parse(endDate))) {
+      return sendError(res, 'Invalid endDate format. Use YYYY-MM-DD');
+    }
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      return sendError(res, 'startDate cannot be after endDate');
+    }
+
+    const report = await ReportService.generateProjectUsersReport(startDate, endDate);
+
+    return sendSuccess(res, 'Project-users report generated successfully', report, 200);
+  } catch (error) {
+    console.error('Generate project-users report error:', error);
+    return sendServerError(res, 'Failed to generate project-users report', error.message);
+  }
+};
+
 module.exports = {
-  generateGrandReport
+  generateGrandReport,
+  generateProjectUsersReport
 };
