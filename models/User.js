@@ -42,4 +42,7 @@ userSchema.index({ email: 1 }, { unique: true });
 // Index for soft delete queries
 userSchema.index({ isDeleted: 1 });
 
+// Index for name field for fast search queries
+userSchema.index({ name: 1 });
+
 module.exports = mongoose.model('User', userSchema);
