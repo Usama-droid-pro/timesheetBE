@@ -26,7 +26,6 @@ const createOrUpdateTaskLog = async (taskLogData) => {
     const existingTaskLog = await TaskLog.findOne({ 
       userId, 
       date: new Date(date),
-      isDeleted: false 
     });
 
     if (existingTaskLog) {
@@ -52,7 +51,6 @@ const createOrUpdateTaskLog = async (taskLogData) => {
         date: new Date(date),
         totalHours,
         tasks,
-        isDeleted: false
       });
 
       await taskLog.save();
@@ -82,7 +80,7 @@ const getTaskLogs = async (filters) => {
     const { userId, startDate, endDate, project_name } = filters;
     
     // Build query
-    const query = { isDeleted: false };
+    const query = {};
     
     if (userId) {
       query.userId = userId;
@@ -124,7 +122,6 @@ const getSingleTaskLog = async (userId, date) => {
     const taskLog = await TaskLog.findOne({ 
       userId, 
       date: new Date(date),
-      isDeleted: false 
     }).populate('userId', 'name email role');
 
     if (!taskLog) {
@@ -175,10 +172,7 @@ const updateTaskLogById = async (taskLogId, updateData) => {
       throw new Error('Task log not found');
     }
 
-    if (taskLog.isDeleted) {
-      throw new Error('Task log has been deleted');
-    }
-
+   
     // Update fields if provided
     if (totalHours !== undefined) {
       taskLog.totalHours = totalHours;
@@ -215,33 +209,16 @@ const deleteTaskLogById = async (taskLogId) => {
       throw new Error('Task log not found');
     }
 
-    if (taskLog.isDeleted) {
-      // Idempotent delete: treat as success
-      return {
-        id: taskLog._id,
-        userId: taskLog.userId,
-        date: taskLog.date,
-        totalHours: taskLog.totalHours,
-        tasks: taskLog.tasks,
-        createdAt: taskLog.createdAt,
-        updatedAt: taskLog.updatedAt,
-        isDeleted: true
-      };
-    }
 
-    taskLog.isDeleted = true;
-    await taskLog.save();
+    const deleteTask = await TaskLog.findByIdAndDelete(taskLogId);
 
-    return {
-      id: taskLog._id,
-      userId: taskLog.userId,
-      date: taskLog.date,
-      totalHours: taskLog.totalHours,
-      tasks: taskLog.tasks,
-      createdAt: taskLog.createdAt,
-      updatedAt: taskLog.updatedAt,
-      isDeleted: true
-    };
+  
+    return ({
+      message : "Task log deleted successfully",
+      data : deleteTask,
+      success : true,
+      status : 200,
+    })
   } catch (error) {
     throw error;
   }
