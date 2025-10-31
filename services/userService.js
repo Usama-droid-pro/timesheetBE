@@ -139,14 +139,13 @@ const searchUsersByName = async (searchQuery) => {
     const searchRegex = new RegExp(searchQuery.trim(), 'i');
 
     const users = await User.find({
-      isDeleted: false,
       name: { $regex: searchRegex }
     })
       .select('name role')
       .sort({ name: 1 })
       .limit(50); // Limit results for performance
 
-    return users.map(user => ({
+    return users.filter(user => user.role !== 'Admin').map(user => ({
       id: user._id,
       name: user.name,
       role: user.role
