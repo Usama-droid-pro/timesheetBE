@@ -12,8 +12,7 @@ const router = express.Router();
 router.post('/login', [
   body('email')
     .isEmail()
-    .withMessage('Please provide a valid email')
-    .normalizeEmail(),
+    .withMessage('Please provide a valid email'),
   body('password')
     .isLength({ min: 8 })
     .withMessage('Password must be at least 8 characters long')
