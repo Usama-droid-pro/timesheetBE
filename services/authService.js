@@ -14,11 +14,14 @@ const { sendSuccess, sendError, sendServerError } = require('../utils/responseHa
 const login = async (email, password) => {
   try {
     // Find user by email (exclude soft deleted)
-    const user = await User.findOne({ email: email.toLowerCase(), isDeleted: false });
+    const user = await User.findOne({ email: email.toLowerCase() });
     
     if (!user) {
       throw new Error('Invalid email or password');
     }
+    console.log(user)
+    console.log(password)
+    console.log(user.password)
 
     // Check password
     const isPasswordValid = await bcrypt.compare(password, user.password);
@@ -43,6 +46,7 @@ const login = async (email, password) => {
       name: user.name,
       email: user.email,
       role: user.role,
+      isAdmin: user.isAdmin,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     };
