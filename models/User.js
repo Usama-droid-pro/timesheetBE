@@ -31,6 +31,10 @@ const userSchema = new mongoose.Schema({
   isDeleted: {
     type: Boolean,
     default: false
+  },
+  isAdmin : {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true
