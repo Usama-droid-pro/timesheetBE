@@ -14,7 +14,7 @@ const reportRoutes = require('./routes/reportRoutes');
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 
 // Import utilities
-const seedAdmin = require('./utils/seedAdmin');
+// const seedAdmin = require('./utils/seedAdmin');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -78,9 +78,9 @@ const connectDB = async () => {
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     
     // Seed admin user after successful connection (only in non-Vercel environment)
-    if (process.env.VERCEL !== '1') {
-      await seedAdmin();
-    }
+    // if (process.env.VERCEL !== '1') {
+    //   await seedAdmin();
+    // }
   } catch (error) {
     console.error('❌ MongoDB connection error:', error);
     process.exit(1);
