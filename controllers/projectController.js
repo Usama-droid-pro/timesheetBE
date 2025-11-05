@@ -12,9 +12,9 @@ const { sendSuccess, sendError, sendServerError } = require('../utils/responseHa
  */
 const createProject = async (req, res) => {
   try {
-    const { name, description } = req.body;
+    const { name, description, status, members } = req.body;
 
-    const project = await ProjectService.createProject({ name, description });
+    const project = await ProjectService.createProject({ name, description, status, members });
     
     return sendSuccess(res, 'Project created successfully', { project }, 201);
   } catch (error) {
@@ -31,7 +31,7 @@ const getAllProjects = async (req, res) => {
   try {
     const projects = await ProjectService.getAllProjects();
     
-    return sendSuccess(res, 'Projects retrieved successfully', { projects }, 200);
+    return sendSuccess(res, 'Projects retrieved successfully', {items : projects }, 200);
   } catch (error) {
     console.error('Get projects error:', error);
     return sendServerError(res, 'Failed to retrieve projects', error.message);
@@ -55,8 +55,31 @@ const deleteProject = async (req, res) => {
   }
 };
 
+/**
+ * PUT /api/projects/:id
+ * Update a project by ID
+ */
+const updateProject = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { name, description, status, members } = req.body;
+
+    // Ensure at least one field provided
+    if (name === undefined && description === undefined) {
+      return sendError(res, 'Provide at least one field to update (name or description)');
+    }
+
+    const project = await ProjectService.updateProject(id, { name, description, status, members });
+    return sendSuccess(res, 'Project updated successfully', { project }, 200);
+  } catch (error) {
+    console.error('Update project error:', error);
+    return sendError(res, error.message, null, 400);
+  }
+};
+
 module.exports = {
   createProject,
   getAllProjects,
-  deleteProject
+  deleteProject,
+  updateProject
 };
