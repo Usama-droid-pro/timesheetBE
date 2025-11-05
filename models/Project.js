@@ -12,10 +12,15 @@ const projectSchema = new mongoose.Schema({
     trim: true,
     maxlength: [1000, 'Description cannot exceed 1000 characters']
   },
-  isDeleted: {
-    type: Boolean,
-    default: false
-  }
+  status: {
+    type: String,
+    enum: {
+      values: ['done', 'inprogress', 'paused', 'backlog'],
+      message: 'Status must be one of: done, inprogress, paused, backlog'
+    },
+    default: 'inprogress'
+  },
+  members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }, {
   timestamps: true
 });
