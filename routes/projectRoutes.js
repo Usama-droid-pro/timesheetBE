@@ -39,7 +39,6 @@ router.post('/', [
  * Get all projects (exclude soft deleted)
  */
 router.get('/', [
-  authMiddleware
 ], getAllProjects);
 
 /**
