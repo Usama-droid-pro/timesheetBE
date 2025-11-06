@@ -61,7 +61,8 @@ const adminMiddleware = (req, res, next) => {
     return sendUnauthorized(res, 'Authentication required.');
   }
 
-  if (req.user.role !== 'Admin') {
+
+  if (req.user.role !== 'Admin'  || !req.user.isAdmin) {
     return sendForbidden(res, 'Admin access required.');
   }
 
