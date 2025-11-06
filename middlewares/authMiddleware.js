@@ -26,7 +26,7 @@ const authMiddleware = async (req, res, next) => {
     // Get user from database
     const user = await User.findById(decoded.userId).select('-password');
     
-    if (!user || user.isDeleted) {
+    if (!user) {
       return sendUnauthorized(res, 'Invalid token. User not found.');
     }
 
@@ -36,7 +36,8 @@ const authMiddleware = async (req, res, next) => {
       userId: user._id, // Alias for convenience
       email: user.email,
       name: user.name,
-      role: user.role
+      role: user.role,
+      isAdmin: user.isAdmin
     };
 
     next();
@@ -61,6 +62,7 @@ const adminMiddleware = (req, res, next) => {
     return sendUnauthorized(res, 'Authentication required.');
   }
 
+  console.log(req.user)
 
   const isAdmin  = req.user.role === 'Admin' || req.user.isAdmin == true;
   if (!isAdmin) {
