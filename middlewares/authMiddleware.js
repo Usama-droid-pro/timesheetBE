@@ -62,7 +62,8 @@ const adminMiddleware = (req, res, next) => {
   }
 
 
-  if (req.user.role !== 'Admin'  || !req.user.isAdmin) {
+  const isAdmin  = req.user.role === 'Admin' || req.user.isAdmin == true;
+  if (!isAdmin) {
     return sendForbidden(res, 'Admin access required.');
   }
 
