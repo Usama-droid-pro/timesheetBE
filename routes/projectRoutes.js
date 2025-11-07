@@ -1,6 +1,6 @@
 const express = require('express');
 const { body, param } = require('express-validator');
-const { createProject, getAllProjects, deleteProject, updateProject } = require('../controllers/projectController');
+const { createProject, getAllProjects, deleteProject, updateProject, getProjects } = require('../controllers/projectController');
 const { authMiddleware, adminMiddleware } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
@@ -40,6 +40,8 @@ router.post('/', [
  */
 router.get('/', [
 ], getAllProjects);
+
+router.get("/allValid" , getProjects)
 
 /**
  * PUT /api/projects/:id
