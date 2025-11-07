@@ -16,11 +16,22 @@ const taskLogSchema = new mongoose.Schema({
     min: [0, 'Total hours cannot be negative']
   },
   tasks: [{
+    project_id: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'Project',
+      required: function() {
+        // Require project_id for new entries, but allow existing entries with project_name
+        return !this.project_name;
+      }
+    },
     project_name: {
       type: String,
-      required: [true, 'Project name is required for each task'],
       trim: true,
-      maxlength: [200, 'Project name cannot exceed 200 characters']
+      maxlength: [200, 'Project name cannot exceed 200 characters'],
+      required: function() {
+        // Require project_name for legacy entries, but allow new entries with project_id
+        return !this.project_id;
+      }
     },
     description: {
       type: String,

@@ -20,6 +20,10 @@ const projectSchema = new mongoose.Schema({
     },
     default: 'inprogress'
   },
+  isDeleted: {
+    type: Boolean,
+    default: false
+  },
   members: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }]
 }, {
   timestamps: true
