@@ -1,5 +1,6 @@
 const TaskLog = require('../models/TaskLog');
 const User = require('../models/User');
+const Project = require('../models/Project');
 const { sendSuccess, sendError, sendServerError } = require('../utils/responseHandler');
 
 /**
@@ -49,11 +50,32 @@ const generateGrandReport = async (startDate, endDate) => {
       {
         $unwind: '$tasks'
       },
-      // Group by project name and user role
+      // Lookup project information for tasks that have project_id
+      {
+        $lookup: {
+          from: 'projects',
+          localField: 'tasks.project_id',
+          foreignField: '_id',
+          as: 'projectInfo'
+        }
+      },
+      // Add computed field for project name (prioritize project_id lookup over project_name)
+      {
+        $addFields: {
+          'tasks.resolvedProjectName': {
+            $cond: {
+              if: { $ne: [{ $arrayElemAt: ['$projectInfo.name', 0] }, null] },
+              then: { $arrayElemAt: ['$projectInfo.name', 0] },
+              else: '$tasks.project_name'
+            }
+          }
+        }
+      },
+      // Group by resolved project name and user role
       {
         $group: {
           _id: {
-            project: '$tasks.project_name',
+            project: '$tasks.resolvedProjectName',
             role: '$user.role'
           },
           totalHours: { $sum: '$tasks.hours' }
@@ -196,16 +218,45 @@ const generateProjectUsersReport = async (startDate, endDate) => {
       { $sort: { name: 1 } }
     ];
 
-    const usersLogs = await TaskLog.aggregate(pipeline);
+  const usersLogs = await TaskLog.aggregate(pipeline);
 
+  // Ensure all users are present even if they have no logs in the range
+  const allUsers = await User.find({ isDeleted: false }).select('_id name role').sort({ name: 1 });
+
+  const byUserId = new Map(usersLogs.map(u => [String(u.userId), u]));
+
+  const mergedUsers = allUsers.map(u => {
+    const found = byUserId.get(String(u._id));
+    if (found) {
+      // Compute total hours across logs for this user
+      const total = Array.isArray(found.logs)
+        ? found.logs.reduce((sum, l) => sum + (Number(l.totalHours) || 0), 0)
+        : 0;
+      return {
+        userId: found.userId,
+        name: found.name,
+        role: found.role,
+        totalHours: parseFloat(total.toFixed(2)),
+        logs: found.logs
+      };
+    }
     return {
+      userId: u._id,
+      name: u.name,
+      role: u.role,
+      totalHours: 0.00,
+      logs: []
+    };
+  });
+
+  return {
       GrandReport: {
         projects: grand.projects,
         totals: grand.totals,
         dateRange: grand.dateRange,
         totalProjects: grand.totalProjects
       },
-      usersLogs
+    usersLogs: mergedUsers
     };
   } catch (error) {
     throw error;

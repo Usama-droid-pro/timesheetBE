@@ -2,14 +2,6 @@ const bcrypt = require('bcryptjs');
 const User = require('../models/User');
 const { sendSuccess, sendError, sendServerError } = require('../utils/responseHandler');
 
-/**
- * User Service
- * Handles user-related business logic
- */
-
-/**
- * Create a new user (Admin only)
- */
 const createUser = async (userData) => {
   try {
     const { name, email, password, role } = userData;
@@ -111,8 +103,7 @@ const deleteUser = async (userId) => {
     }
 
     // Soft delete
-    user.isDeleted = true;
-    await user.save();
+    await user.deleteOne({_id: userId});
 
     return {
       id: user._id,
