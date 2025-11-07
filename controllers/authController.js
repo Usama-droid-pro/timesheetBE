@@ -13,6 +13,9 @@ const { sendSuccess, sendError, sendServerError } = require('../utils/responseHa
 const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+    console.log("IN login ")
+    console.log(email)
+    console.log(password)
 
     // Basic validation
     if (!email || !password) {

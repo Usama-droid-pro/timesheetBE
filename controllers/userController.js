@@ -43,6 +43,10 @@ const getAllUsers = async (req, res) => {
  * Update user password (Admin only)
  */
 const updateUserPassword = async (req, res) => {
+
+  console.log("IN update password ")
+  console.log(req.body)
+  console.log(req.params)
   try {
     const { id } = req.params;
     const { password } = req.body;

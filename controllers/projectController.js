@@ -38,6 +38,17 @@ const getAllProjects = async (req, res) => {
   }
 };
 
+const getProjects = async (req, res) => {
+  try {
+    const projects = await ProjectService.getProjects();
+    
+    return sendSuccess(res, 'Projects retrieved successfully', {items : projects }, 200);
+  } catch (error) {
+    console.error('Get projects error:', error);
+    return sendServerError(res, 'Failed to retrieve projects', error.message);
+  }
+};
+
 /**
  * DELETE /api/projects/:id
  * Soft delete project (Admin only)
@@ -80,6 +91,7 @@ const updateProject = async (req, res) => {
 module.exports = {
   createProject,
   getAllProjects,
+  getProjects,
   deleteProject,
   updateProject
 };
