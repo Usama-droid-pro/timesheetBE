@@ -1,21 +1,14 @@
 const UserService = require('../services/userService');
-const { sendSuccess, sendError, sendServerError } = require('../utils/responseHandler');
+const { sendSuccess, sendError, sendServerError, sendForbidden } = require('../utils/responseHandler');
+const { cloudinary } = require('../utils/cloudinary');
+const streamifier = require('streamifier');
 
-/**
- * User Controller
- * Handles user-related HTTP requests
- */
 
-/**
- * POST /api/users
- * Create a new user (Admin only)
- */
 const createUser = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, memberOfHW } = req.body;
+    const user = await UserService.createUser({ name, email, password, role, memberOfHW });
 
-    const user = await UserService.createUser({ name, email, password, role });
-    
     return sendSuccess(res, 'User created successfully', { user }, 201);
   } catch (error) {
     console.error('Create user error:', error);
@@ -23,14 +16,27 @@ const createUser = async (req, res) => {
   }
 };
 
+const getUserById = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const user = await UserService.getUserById(id);
+
+    return sendSuccess(res, 'User retrieved successfully', { user }, 200);
+  } catch (error) {
+    console.error('Get user error:', error);
+    return sendError(res, error.message, null, 400);
+  }
+};
 /**
  * GET /api/users
  * Get all users (exclude soft deleted)
  */
 const getAllUsers = async (req, res) => {
   try {
-    const users = await UserService.getAllUsers();
-    
+    let filters = { ...req.query }
+    console.log(filters)
+    const users = await UserService.getAllUsers(filters);
+
     return sendSuccess(res, 'Users retrieved successfully', { users }, 200);
   } catch (error) {
     console.error('Get users error:', error);
@@ -39,10 +45,29 @@ const getAllUsers = async (req, res) => {
 };
 
 /**
+ * GET /api/users/for-data
+ * Get users filtered by active status and date range
+ * - Active users are always returned
+ * - Inactive users are returned only if they have task logs within the range
+ */
+const getUsersForData = async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    const users = await UserService.getAllUsesForData(startDate, endDate);
+    return sendSuccess(res, 'Users for data range retrieved successfully', { users }, 200);
+  } catch (error) {
+    console.error('Get users for data range error:', error);
+    return sendServerError(res, 'Failed to retrieve users for data range', error.message);
+  }
+};
+
+/**
  * PUT /api/users/:id/password
  * Update user password (Admin only)
  */
 const updateUserPassword = async (req, res) => {
+  console.log(req.body)
+  console.log(req.params)
   try {
     const { id } = req.params;
     const { password } = req.body;
@@ -52,7 +77,7 @@ const updateUserPassword = async (req, res) => {
     }
 
     const user = await UserService.updateUserPassword(id, password);
-    
+
     return sendSuccess(res, 'Password updated successfully', { user }, 200);
   } catch (error) {
     console.error('Update password error:', error);
@@ -60,16 +85,12 @@ const updateUserPassword = async (req, res) => {
   }
 };
 
-/**
- * DELETE /api/users/:id
- * Soft delete user (Admin only)
- */
 const deleteUser = async (req, res) => {
   try {
     const { id } = req.params;
 
     const user = await UserService.deleteUser(id);
-    
+
     return sendSuccess(res, 'User deleted successfully', { user }, 200);
   } catch (error) {
     console.error('Delete user error:', error);
@@ -77,10 +98,90 @@ const deleteUser = async (req, res) => {
   }
 };
 
-/**
- * GET /api/users/search
- * Search users by name (returns only id, name, and role)
- */
+const updateUser = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!req.user || (req.user.id.toString() !== id && !req.user.isAdmin)) {
+      return sendForbidden(res, 'You can only update your own profile');
+    }
+
+    const { name, phone, dob, gender, currentPassword, newPassword, confirmPassword } = req.body;
+    const file = req.file;
+
+    // Handle image upload if provided
+    let profilePicUrl = null;
+    if (file) {
+      console.log(file)
+      profilePicUrl = await new Promise((resolve, reject) => {
+        const folder = `users/${id}`;
+        const uploadStream = cloudinary.uploader.upload_stream(
+          { folder, resource_type: 'image', overwrite: true },
+          (error, result) => {
+            if (error) {
+              console.error('Cloudinary upload error:', error);
+              reject(new Error('Failed to upload image'));
+            } else {
+              resolve(result.secure_url);
+              console.log("Uploaded")
+            }
+          }
+        );
+        streamifier.createReadStream(file.buffer).pipe(uploadStream);
+      });
+    }
+
+    console.log(profilePicUrl)
+
+    const payload = {
+      ...(typeof name !== 'undefined' ? { name } : {}),
+      ...(typeof phone !== 'undefined' ? { phone } : {}),
+      ...(typeof dob !== 'undefined' ? { dob } : {}),
+      ...(typeof gender !== 'undefined' ? { gender } : {}),
+      ...(profilePicUrl ? { profilePic: profilePicUrl } : {}),
+      ...(currentPassword || newPassword || confirmPassword
+        ? { currentPassword, newPassword, confirmPassword }
+        : {})
+    };
+
+    const user = await UserService.updateUser(id, payload);
+
+    return sendSuccess(res, 'User updated successfully', { user }, 200);
+  } catch (error) {
+    console.error('Update user error:', error);
+    return sendError(res, error.message, null, 400);
+  }
+};
+
+const updateUserByAdmin = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!req.user || !req.user.isAdmin) {
+      return sendForbidden(res, 'Only admins can update user data');
+    }
+
+    console.log("req.body", req.body)
+    const { email, password, isAdmin, memberOfHW } = req.body;
+
+    const payload = {
+      ...(typeof email !== 'undefined' ? { email } : {}),
+      ...(typeof password !== 'undefined' ? { password } : {}),
+      ...(typeof isAdmin !== 'undefined' ? { isAdmin } : {}),
+      ...(typeof memberOfHW !== 'undefined' ? { memberOfHW } : {}),
+    };
+
+    const user = await UserService.updateUserByAdmin(id, payload);
+
+    return sendSuccess(res, 'User updated successfully', { user }, 200);
+  } catch (error) {
+    console.error('Admin update user error:', error);
+    return sendError(res, error.message, null, 400);
+  }
+};
+
+
+
 const searchUsersByName = async (req, res) => {
   try {
     console.log("IN search by name ")
@@ -90,7 +191,7 @@ const searchUsersByName = async (req, res) => {
     }
 
     const users = await UserService.searchUsersByName(name);
-    
+
     return sendSuccess(res, 'Users retrieved successfully', { users }, 200);
   } catch (error) {
     console.error('Search users error:', error);
@@ -98,10 +199,45 @@ const searchUsersByName = async (req, res) => {
   }
 };
 
+/**
+ * PUT /api/users/:id/active
+ * Activate/deactivate a user (Admin only)
+ */
+const setUserActiveStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { active } = req.body;
+
+    if (!req.user || !req.user.isAdmin) {
+      return sendForbidden(res, 'Only admins can change active status');
+    }
+
+    if (typeof active === 'undefined') {
+      return sendError(res, 'Active status is required', null, 400);
+    }
+
+    const user = await UserService.active_deactivateUser(id, Boolean(active));
+    return sendSuccess(res, 'User active status updated', { user }, 200);
+  } catch (error) {
+    console.error('Set active status error:', error);
+    return sendError(res, error.message, null, 400);
+  }
+};
+
+/**
+ * PUT /api/users/:id/profile-pic
+ * Upload user profile picture and save Cloudinary URL
+ */
+
 module.exports = {
   createUser,
+  getUserById,
   getAllUsers,
+  getUsersForData,
   updateUserPassword,
   deleteUser,
-  searchUsersByName
+  searchUsersByName,
+  updateUser,
+  setUserActiveStatus,
+  updateUserByAdmin
 };

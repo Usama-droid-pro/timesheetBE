@@ -25,8 +25,12 @@ const createOrUpdateTaskLog = async (req, res) => {
 
     // Validate each task
     for (const task of tasks) {
-      if (!task.project_name || task.hours === undefined) {
-        return sendError(res, 'Each task must have project_name and hours');
+      // Require either project_id or project_name (prefer project_id for new entries)
+      if (!task.project_id && !task.project_name) {
+        return sendError(res, 'Each task must have either project_id or project_name');
+      }
+      if (task.hours === undefined) {
+        return sendError(res, 'Each task must have hours');
       }
       if (task.hours < 0 || task.hours > 24) {
         return sendError(res, 'Task hours must be between 0 and 24');
@@ -141,8 +145,12 @@ const updateTaskLogById = async (req, res) => {
 
       // Validate each task
       for (const task of tasks) {
-        if (!task.project_name || task.hours === undefined) {
-          return sendError(res, 'Each task must have project_name and hours');
+        // Require either project_id or project_name (prefer project_id for new entries)
+        if (!task.project_id && !task.project_name) {
+          return sendError(res, 'Each task must have either project_id or project_name');
+        }
+        if (task.hours === undefined) {
+          return sendError(res, 'Each task must have hours');
         }
         if (task.hours < 0 || task.hours > 24) {
           return sendError(res, 'Task hours must be between 0 and 24');
