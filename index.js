@@ -2,6 +2,8 @@ const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 require('dotenv').config();
+const { authMiddleware } = require("./middlewares/authMiddleware");
+const mongoSanitize = require('express-mongo-sanitize');
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -9,6 +11,8 @@ const userRoutes = require('./routes/userRoutes');
 const projectRoutes = require('./routes/projectRoutes');
 const tasklogRoutes = require('./routes/tasklogRoutes');
 const reportRoutes = require('./routes/reportRoutes');
+const teamRoutes = require('./routes/teamRoutes');
+const extraHoursRoutes = require('./routes/extraHoursRoutes');
 
 // Import middleware
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
@@ -23,6 +27,7 @@ const PORT = process.env.PORT || 5000;
 app.use(cors("*"));
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use(mongoSanitize());
 
 // Request logging middleware
 app.use((req, res, next) => {
@@ -50,10 +55,13 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use(authMiddleware);
 app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/tasklogs', tasklogRoutes);
 app.use('/api/reports', reportRoutes);
+app.use('/api/teams', teamRoutes);
+app.use('/api/extra-hours', extraHoursRoutes);
 
 // 404 handler for undefined routes
 app.use(notFoundHandler);
@@ -76,7 +84,7 @@ const connectDB = async () => {
     });
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-    
+
     // Seed admin user after successful connection (only in non-Vercel environment)
     // if (process.env.VERCEL !== '1') {
     //   await seedAdmin();
@@ -91,7 +99,7 @@ const connectDB = async () => {
 const startServer = async () => {
   try {
     await connectDB();
-    
+
     app.listen(PORT, () => {
       console.log(`🚀 Server running on port ${PORT}`);
       console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
