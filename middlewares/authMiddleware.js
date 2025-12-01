@@ -9,7 +9,7 @@ const { sendUnauthorized, sendServerError, sendForbidden } = require('../utils/r
 const authMiddleware = async (req, res, next) => {
   try {
     const authHeader = req.header('Authorization');
-    
+
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       return sendUnauthorized(res, 'Access denied. No token provided.');
     }
@@ -22,12 +22,21 @@ const authMiddleware = async (req, res, next) => {
 
     // Verify token
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    
+
     // Get user from database
     const user = await User.findById(decoded.userId).select('-password');
-    
+
     if (!user) {
       return sendUnauthorized(res, 'Invalid token. User not found.');
+    }
+
+    if (!user.active) {
+      return sendUnauthorized(res, 'User has been deactivated. Please contact admin.');
+    }
+
+
+    if (decoded.tokenVersion !== user.tokenVersion) {
+      return sendUnauthorized(res, 'Session Expired. Please log in again.');
     }
 
     // Add user info to request object
@@ -64,7 +73,7 @@ const adminMiddleware = (req, res, next) => {
 
   console.log(req.user)
 
-  const isAdmin  = req.user.role === 'Admin' || req.user.isAdmin == true;
+  const isAdmin = req.user.role === 'Admin' || req.user.isAdmin == true;
   if (!isAdmin) {
     return sendForbidden(res, 'Admin access required.');
   }
