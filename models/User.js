@@ -28,13 +28,45 @@ const userSchema = new mongoose.Schema({
       message: 'Role must be one of: QA, DESIGN, DEV, PM, Admin'
     }
   },
+  profilePic: {
+    type: String,
+    default: null
+  },
+  dob: {
+    type: Date,
+    default: null
+  },
+  phone: {
+    type: String,
+    default: null
+  },
+  gender: {
+    type: String,
+    enum: {
+      values: ['Male', 'Female'],
+      message: 'Gender must be one of: Male, Female'
+    },
+    default: null
+  },
+  active: {
+    type: Boolean,
+    default: true
+  },
+  memberOfHW: {
+    type: Boolean,
+    default: false
+  },
   isDeleted: {
     type: Boolean,
     default: false
   },
-  isAdmin : {
+  isAdmin: {
     type: Boolean,
     default: false
+  },
+  tokenVersion: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true
