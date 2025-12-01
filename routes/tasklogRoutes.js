@@ -10,7 +10,6 @@ const router = express.Router();
  * Create or update task log
  */
 router.post('/', [
-  authMiddleware,
   body('userId')
     .isMongoId()
     .withMessage('Valid user ID is required'),
@@ -133,12 +132,8 @@ router.put('/:id', [
     .withMessage('Hours must be between 0 and 24')
 ], updateTaskLogById);
 
-/**
- * DELETE /api/tasklogs/:id
- * Soft delete task log by ID (Not Protected - Any user can delete)
- */
+
 router.delete('/:id', [
-  // No authMiddleware - open to all users
   param('id')
     .isMongoId()
     .withMessage('Valid task log ID is required')

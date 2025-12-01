@@ -1,16 +1,11 @@
 const express = require('express');
 const { body, param } = require('express-validator');
-const { createProject, getAllProjects, deleteProject, updateProject } = require('../controllers/projectController');
+const { createProject, getAllProjects, deleteProject, updateProject, getProjects } = require('../controllers/projectController');
 const { authMiddleware, adminMiddleware } = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
-/**
- * POST /api/projects
- * Create a new project
- */
 router.post('/', [
-  authMiddleware,
   body('name')
     .trim()
     .isLength({ min: 2, max: 200 })
@@ -41,12 +36,13 @@ router.post('/', [
 router.get('/', [
 ], getAllProjects);
 
+router.get("/allValid", getProjects)
+
 /**
  * PUT /api/projects/:id
  * Update a project by ID
  */
 router.put('/:id', [
-  authMiddleware,
   param('id').isMongoId().withMessage('Invalid project ID'),
   body('name')
     .optional()
@@ -77,7 +73,6 @@ router.put('/:id', [
  * Soft delete project (Admin only)
  */
 router.delete('/:id', [
-  authMiddleware,
   adminMiddleware,
   param('id').isMongoId().withMessage('Invalid project ID')
 ], deleteProject);
