@@ -1,5 +1,6 @@
 const TaskLog = require('../models/TaskLog');
 const User = require('../models/User');
+const Project = require('../models/Project');
 const { sendSuccess, sendError, sendServerError } = require('../utils/responseHandler');
 
 /**
@@ -49,20 +50,42 @@ const generateGrandReport = async (startDate, endDate) => {
       {
         $unwind: '$tasks'
       },
-      // Group by project name and user role
+      // Lookup project information for tasks that have project_id
+      {
+        $lookup: {
+          from: 'projects',
+          localField: 'tasks.project_id',
+          foreignField: '_id',
+          as: 'projectInfo'
+        }
+      },
+      // Add computed fields for resolved project id and name (prefer lookup values)
+      {
+        $addFields: {
+          'tasks.resolvedProjectId': {
+            $ifNull: [{ $arrayElemAt: ['$projectInfo._id', 0] }, '$tasks.project_id']
+          },
+          'tasks.resolvedProjectName': {
+            $ifNull: [{ $arrayElemAt: ['$projectInfo.name', 0] }, '$tasks.project_name']
+          }
+        }
+      },
+      // Group by resolved project id + name and user role
       {
         $group: {
           _id: {
-            project: '$tasks.project_name',
+            projectId: '$tasks.resolvedProjectId',
+            projectName: '$tasks.resolvedProjectName',
             role: '$user.role'
           },
           totalHours: { $sum: '$tasks.hours' }
         }
       },
-      // Group by project to aggregate all roles
+      // Group by project id to aggregate all roles and keep project name
       {
         $group: {
-          _id: '$_id.project',
+          _id: '$_id.projectId',
+          projectName: { $first: '$_id.projectName' },
           roles: {
             $push: {
               role: '$_id.role',
@@ -74,16 +97,17 @@ const generateGrandReport = async (startDate, endDate) => {
       },
       // Sort by project name
       {
-        $sort: { '_id': 1 }
+        $sort: { projectName: 1 }
       }
     ];
 
     const projectData = await TaskLog.aggregate(pipeline);
 
-    // Transform data to the required format
+    // Transform data to the required format (grouped by project id)
     const projects = projectData.map(project => {
       const projectObj = {
-        project: project._id,
+        projectId: project._id,
+        projectName: project.projectName || 'Unassigned',
         totalHours: project.totalHours,
         QA: 0,
         DESIGN: 0,
@@ -196,16 +220,45 @@ const generateProjectUsersReport = async (startDate, endDate) => {
       { $sort: { name: 1 } }
     ];
 
-    const usersLogs = await TaskLog.aggregate(pipeline);
+  const usersLogs = await TaskLog.aggregate(pipeline);
 
+  // Ensure all users are present even if they have no logs in the range
+  const allUsers = await User.find({ isDeleted: false }).select('_id name role').sort({ name: 1 });
+
+  const byUserId = new Map(usersLogs.map(u => [String(u.userId), u]));
+
+  const mergedUsers = allUsers.map(u => {
+    const found = byUserId.get(String(u._id));
+    if (found) {
+      // Compute total hours across logs for this user
+      const total = Array.isArray(found.logs)
+        ? found.logs.reduce((sum, l) => sum + (Number(l.totalHours) || 0), 0)
+        : 0;
+      return {
+        userId: found.userId,
+        name: found.name,
+        role: found.role,
+        totalHours: parseFloat(total.toFixed(2)),
+        logs: found.logs
+      };
+    }
     return {
+      userId: u._id,
+      name: u.name,
+      role: u.role,
+      totalHours: 0.00,
+      logs: []
+    };
+  });
+
+  return {
       GrandReport: {
         projects: grand.projects,
         totals: grand.totals,
         dateRange: grand.dateRange,
         totalProjects: grand.totalProjects
       },
-      usersLogs
+    usersLogs: mergedUsers
     };
   } catch (error) {
     throw error;

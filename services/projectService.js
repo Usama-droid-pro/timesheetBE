@@ -1,24 +1,16 @@
 const Project = require('../models/Project');
 const { sendSuccess, sendError, sendServerError } = require('../utils/responseHandler');
 
-/**
- * Project Service
- * Handles project-related business logic
- */
-
-/**
- * Create a new project
- */
 const createProject = async (projectData) => {
   try {
     const { name, description, status, members } = projectData;
 
     // Check if project already exists
-    const existingProject = await Project.findOne({ 
-      name: name.trim(), 
-      isDeleted: false 
+    const existingProject = await Project.findOne({
+      name: name.trim(),
+      isDeleted: false
     });
-    
+
     if (existingProject) {
       throw new Error('Project with this name already exists');
     }
@@ -53,7 +45,7 @@ const createProject = async (projectData) => {
  */
 const getAllProjects = async () => {
   try {
-    const projects = await Project.find({isDeleted: false}).populate('members', 'name email role isAdmin');
+    const projects = await Project.find({ isDeleted: false }).populate('members', 'name email role isAdmin');
 
     return projects.map(project => ({
       id: project._id,
@@ -64,12 +56,13 @@ const getAllProjects = async () => {
       isDeletedAt: project.isDeletedAt,
       members: Array.isArray(project.members)
         ? project.members.map(m => ({
-            id: m._id,
-            name: m.name,
-            email: m.email,
-            role: m.role,
-            isAdmin: m.isAdmin
-          }))
+          id: m._id,
+          name: m.name,
+          email: m.email,
+          role: m.role,
+          isAdmin: m.isAdmin,
+          profilePic: m.profilePic
+        }))
         : [],
       createdAt: project.createdAt,
       updatedAt: project.updatedAt
@@ -92,12 +85,12 @@ const getProjects = async () => {
       isDeletedAt: project.isDeletedAt,
       members: Array.isArray(project.members)
         ? project.members.map(m => ({
-            id: m._id,
-            name: m.name,
-            email: m.email,
-            role: m.role,
-            isAdmin: m.isAdmin
-          }))
+          id: m._id,
+          name: m.name,
+          email: m.email,
+          role: m.role,
+          isAdmin: m.isAdmin
+        }))
         : [],
       createdAt: project.createdAt,
       updatedAt: project.updatedAt
@@ -112,11 +105,8 @@ const getProjects = async () => {
  */
 const deleteProject = async (projectId) => {
   try {
-    console.log("IN delete project ")
-    console.log(projectId)
     const project = await Project.findById(projectId);
 
-    
     if (!project) {
       throw new Error('Project not found');
     }
@@ -124,12 +114,12 @@ const deleteProject = async (projectId) => {
     project.isDeleted = true;
     project.isDeletedAt = new Date();
     await project.save();
-  
+
 
     return ({
-      message : "Project deleted successfully",
-      success : true,
-      status : 200
+      message: "Project deleted successfully",
+      success: true,
+      status: 200
     })
   } catch (error) {
     throw error;
@@ -196,12 +186,12 @@ const updateProject = async (projectId, updateData) => {
       status: project.status,
       members: Array.isArray(project.members)
         ? project.members.map(m => ({
-            id: m._id,
-            name: m.name,
-            email: m.email,
-            role: m.role,
-            isAdmin: m.isAdmin
-          }))
+          id: m._id,
+          name: m.name,
+          email: m.email,
+          role: m.role,
+          isAdmin: m.isAdmin
+        }))
         : [],
       createdAt: project.createdAt,
       updatedAt: project.updatedAt
