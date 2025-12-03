@@ -25,6 +25,7 @@ const login = async (email, password) => {
         userId: user._id,
         role: user.role,
         isAdmin: user?.isAdmin,
+        memberOfHW: user?.memberOfHW,
         tokenVersion: user?.tokenVersion
 
       },
@@ -43,6 +44,7 @@ const login = async (email, password) => {
       phone: user.phone,
       dob: user.dob,
       gender: user.gender,
+      memberOfHW: user.memberOfHW,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     };
