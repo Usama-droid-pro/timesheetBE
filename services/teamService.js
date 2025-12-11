@@ -15,6 +15,9 @@ const updateTeam = async (paramId, payload) => {
   if (payload.name !== undefined) update.name = payload.name;
   if (payload.leadId !== undefined) update.leadId = payload.leadId;
   if (payload.members !== undefined) update.members = payload.members;
+  if (payload.members?.length === 0) {
+    update.leadId = null;
+  }
   const team = await Team.findOneAndUpdate(query, update, { new: true });
   return team;
 };

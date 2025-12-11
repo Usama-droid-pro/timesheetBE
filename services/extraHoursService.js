@@ -2,6 +2,9 @@ const ExtraHours = require('../models/ExtraHours');
 const Team = require('../models/Team');
 const User = require('../models/User');
 
+const removeSpecialCharaceters = (str) => {
+  return str.replace(/[^\w\s]/gi, '');
+}
 const addExtraHours = async (payload) => {
   try {
     const entry = await ExtraHours.create(payload);
@@ -149,13 +152,13 @@ const deleteExtraHours = async (id) => {
 }
 
 const checkAvailability = async (personIdsRaw) => {
-  const personIds = Array.from(new Set((personIdsRaw || []).map(v => String(v || '').trim()).filter(Boolean)));
+  const personIds = Array.from(new Set((personIdsRaw || []).map(v => removeSpecialCharaceters(String(v || '').trim())).filter(Boolean)));
   console.log(personIds)
   if (personIds.length === 0) return { unknown: [] };
   const users = await User.find({ bioMetricId: { $in: personIds } }).lean();
 
   console.log(users)
-  const known = new Set((users || []).map(u => String(u.bioMetricId || '').trim()));
+  const known = new Set((users || []).map(u => removeSpecialCharaceters(String(u.bioMetricId || '').trim())));
   const unknown = personIds
     .filter(pid => !known.has(pid))
     .map(pid => ({ personId: pid }));
@@ -165,7 +168,7 @@ const checkAvailability = async (personIdsRaw) => {
 const importFromExcel = async (entriesRaw) => {
   const entries = Array.isArray(entriesRaw) ? entriesRaw : [];
   if (entries.length === 0) return { inserted: 0, updated: 0, failed: [] };
-  const personIds = Array.from(new Set(entries.map(e => String(e.personId || '').trim()).filter(Boolean)));
+  const personIds = Array.from(new Set(entries.map(e => removeSpecialCharaceters(String(e.personId || '').trim())).filter(Boolean)));
   const users = await User.find({ bioMetricId: { $in: personIds } }).lean();
   const personToUser = new Map(users.map(u => [String(u.bioMetricId || '').trim(), u]));
   const userIds = Array.from(new Set(users.map(u => String(u._id))));
@@ -181,7 +184,7 @@ const importFromExcel = async (entriesRaw) => {
   const ops = [];
   const failed = [];
   for (const e of entries) {
-    const pid = String(e.personId || '').trim();
+    const pid = removeSpecialCharaceters(String(e.personId || '').trim());
     const u = personToUser.get(pid);
     if (!u) {
       failed.push({ personId: pid, date: String(e.date || ''), reason: 'User not found' });
