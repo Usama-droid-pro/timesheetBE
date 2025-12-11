@@ -67,6 +67,10 @@ const userSchema = new mongoose.Schema({
   tokenVersion: {
     type: Number,
     default: 0
+  },
+  bioMetricId: {
+    type: String,
+    required: false,
   }
 }, {
   timestamps: true

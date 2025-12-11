@@ -39,7 +39,8 @@ const extraHoursSchema = new mongoose.Schema({
     note: {
         type: String,
         required: false,
-    }
+    },
+
 }, { timestamps: true });
 
 const ExtraHours = mongoose.model('ExtraHours', extraHoursSchema);
