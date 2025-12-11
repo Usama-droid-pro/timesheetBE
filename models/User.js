@@ -24,8 +24,8 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: [true, 'Role is required'],
     enum: {
-      values: ['QA', 'DESIGN', 'DEV', 'PM', 'Admin'],
-      message: 'Role must be one of: QA, DESIGN, DEV, PM, Admin'
+      values: ['QA', 'DESIGN', 'DEV', 'PM', 'Admin', 'Management', 'Sales', 'Operations'],
+      message: 'Role must be one of: QA, DESIGN, DEV, PM, Admin, Management, Sales, Operations'
     }
   },
   profilePic: {
