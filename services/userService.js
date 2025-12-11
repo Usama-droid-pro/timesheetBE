@@ -4,7 +4,7 @@ const TaskLog = require('../models/TaskLog');
 
 const createUser = async (userData) => {
   try {
-    const { name, email, password, role, memberOfHW } = userData;
+    const { name, email, password, role, memberOfHW, bioMetricId } = userData;
     const existingUser = await User.findOne({ email: email.toLowerCase() });
     if (existingUser && !existingUser.isDeleted) {
       throw new Error('User with this email already exists');
@@ -20,7 +20,8 @@ const createUser = async (userData) => {
       password: hashedPassword,
       role,
       isDeleted: false,
-      memberOfHW: memberOfHW
+      memberOfHW: memberOfHW,
+      bioMetricId: bioMetricId
     });
 
     await user.save();
@@ -32,7 +33,8 @@ const createUser = async (userData) => {
       email: user.email,
       role: user.role,
       createdAt: user.createdAt,
-      updatedAt: user.updatedAt
+      updatedAt: user.updatedAt,
+      bioMetricId: user.bioMetricId
     };
   } catch (error) {
     throw error;
@@ -69,6 +71,7 @@ const getAllUsers = async (filters) => {
       profilePic: user.profilePic,
       active: user?.active,
       memberOfHW: user?.memberOfHW,
+      bioMetricId: user?.bioMetricId,
       updatedAt: user.updatedAt
     }));
   } catch (error) {
@@ -293,6 +296,12 @@ const updateUserByAdmin = async (userId, updates) => {
     const user = await User.findById(userId);
     if (!user || user.isDeleted) {
       throw new Error('User not found');
+    }
+    if (Object.prototype.hasOwnProperty.call(updates, 'bioMetricId')) {
+      const bioMetricId = updates.bioMetricId;
+      if (typeof bioMetricId === 'string' && bioMetricId.trim() !== '') {
+        user.bioMetricId = bioMetricId.trim();
+      }
     }
 
     if (Object.prototype.hasOwnProperty.call(updates, 'email')) {

@@ -148,13 +148,84 @@ const deleteExtraHours = async (id) => {
   }
 }
 
+const checkAvailability = async (personIdsRaw) => {
+  const personIds = Array.from(new Set((personIdsRaw || []).map(v => String(v || '').trim()).filter(Boolean)));
+  console.log(personIds)
+  if (personIds.length === 0) return { unknown: [] };
+  const users = await User.find({ bioMetricId: { $in: personIds } }).lean();
+
+  console.log(users)
+  const known = new Set((users || []).map(u => String(u.bioMetricId || '').trim()));
+  const unknown = personIds
+    .filter(pid => !known.has(pid))
+    .map(pid => ({ personId: pid }));
+  return { unknown };
+}
+
+const importFromExcel = async (entriesRaw) => {
+  const entries = Array.isArray(entriesRaw) ? entriesRaw : [];
+  if (entries.length === 0) return { inserted: 0, updated: 0, failed: [] };
+  const personIds = Array.from(new Set(entries.map(e => String(e.personId || '').trim()).filter(Boolean)));
+  const users = await User.find({ bioMetricId: { $in: personIds } }).lean();
+  const personToUser = new Map(users.map(u => [String(u.bioMetricId || '').trim(), u]));
+  const userIds = Array.from(new Set(users.map(u => String(u._id))));
+  const teams = await Team.find({ members: { $in: userIds } }).lean();
+  const teamForUser = new Map();
+  for (const t of teams) {
+    for (const m of (t.members || [])) {
+      const id = String(m);
+      if (!teamForUser.has(id)) teamForUser.set(id, String(t._id));
+    }
+  }
+
+  const ops = [];
+  const failed = [];
+  for (const e of entries) {
+    const pid = String(e.personId || '').trim();
+    const u = personToUser.get(pid);
+    if (!u) {
+      failed.push({ personId: pid, date: String(e.date || ''), reason: 'User not found' });
+      continue;
+    }
+    const uId = String(u._id);
+    const tId = teamForUser.get(uId);
+    if (!tId) {
+      failed.push({ personId: pid, date: String(e.date || ''), reason: 'Team not found' });
+      continue;
+    }
+    const hrs = Number(e.extraHours || 0) || 0;
+    const start = String(e.checkIn || '');
+    const end = String(e.checkOut || '');
+    const dt = e.date ? new Date(e.date) : new Date();
+    ops.push({
+      updateOne: {
+        filter: { userId: uId, date: dt },
+        update: { $set: { userId: uId, teamId: tId, date: dt, startTime: start, endTime: end, description: '', hours: hrs, approvalStatus: "Pending" } },
+        upsert: true,
+      }
+    });
+  }
+
+  let inserted = 0;
+  let updated = 0;
+  if (ops.length > 0) {
+    const result = await ExtraHours.bulkWrite(ops, { ordered: false });
+    inserted = result.upsertedCount || (result.upsertedIds ? Object.keys(result.upsertedIds).length : 0);
+    updated = result.modifiedCount || 0;
+  }
+
+  return { inserted, updated, failed };
+}
+
 module.exports = {
   addExtraHours,
   updateExtraHours,
   getTaskHours,
   getTeamWiseWorkHours,
   updateApprovalStatus,
-  deleteExtraHours
+  deleteExtraHours,
+  checkAvailability,
+  importFromExcel
 
 
 };
