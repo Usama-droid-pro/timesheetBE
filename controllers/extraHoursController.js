@@ -98,6 +98,32 @@ const deleteExtraHours = async (req, res) => {
   }
 }
 
+const checkAvailability = async (req, res) => {
+  try {
+    const { personIds } = req.body;
+    if (!Array.isArray(personIds) || personIds.length === 0) {
+      return sendError(res, 'personIds must be a non-empty array', null, 400);
+    }
+    const result = await extraHoursService.checkAvailability(personIds);
+    return sendSuccess(res, 'Availability checked', result);
+  } catch (e) {
+    return sendServerError(res, 'Failed to check availability', e.message);
+  }
+}
+
+const importFromExcel = async (req, res) => {
+  try {
+    const { entries } = req.body;
+    if (!Array.isArray(entries) || entries.length === 0) {
+      return sendError(res, 'entries must be a non-empty array', null, 400);
+    }
+    const result = await extraHoursService.importFromExcel(entries);
+    return sendSuccess(res, 'Excel import processed', result);
+  } catch (e) {
+    return sendServerError(res, 'Failed to import excel entries', e.message);
+  }
+}
+
 
 
 module.exports = {
@@ -107,6 +133,8 @@ module.exports = {
   getTaskHours,
   updateApprovalStatus,
   deleteExtraHours,
-  getTeamWiseWorkHours
+  getTeamWiseWorkHours,
+  checkAvailability,
+  importFromExcel
 
 };

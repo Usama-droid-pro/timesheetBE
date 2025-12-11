@@ -6,8 +6,8 @@ const streamifier = require('streamifier');
 
 const createUser = async (req, res) => {
   try {
-    const { name, email, password, role, memberOfHW } = req.body;
-    const user = await UserService.createUser({ name, email, password, role, memberOfHW });
+    const { name, email, password, role, memberOfHW, bioMetricId } = req.body;
+    const user = await UserService.createUser({ name, email, password, role, memberOfHW, bioMetricId });
 
     return sendSuccess(res, 'User created successfully', { user }, 201);
   } catch (error) {
@@ -27,10 +27,7 @@ const getUserById = async (req, res) => {
     return sendError(res, error.message, null, 400);
   }
 };
-/**
- * GET /api/users
- * Get all users (exclude soft deleted)
- */
+
 const getAllUsers = async (req, res) => {
   try {
     let filters = { ...req.query }
@@ -44,12 +41,7 @@ const getAllUsers = async (req, res) => {
   }
 };
 
-/**
- * GET /api/users/for-data
- * Get users filtered by active status and date range
- * - Active users are always returned
- * - Inactive users are returned only if they have task logs within the range
- */
+
 const getUsersForData = async (req, res) => {
   try {
     const { startDate, endDate } = req.query;
@@ -61,10 +53,6 @@ const getUsersForData = async (req, res) => {
   }
 };
 
-/**
- * PUT /api/users/:id/password
- * Update user password (Admin only)
- */
 const updateUserPassword = async (req, res) => {
   console.log(req.body)
   console.log(req.params)
@@ -162,13 +150,14 @@ const updateUserByAdmin = async (req, res) => {
     }
 
     console.log("req.body", req.body)
-    const { email, password, isAdmin, memberOfHW } = req.body;
+    const { email, password, isAdmin, memberOfHW, bioMetricId } = req.body;
 
     const payload = {
       ...(typeof email !== 'undefined' ? { email } : {}),
       ...(typeof password !== 'undefined' ? { password } : {}),
       ...(typeof isAdmin !== 'undefined' ? { isAdmin } : {}),
       ...(typeof memberOfHW !== 'undefined' ? { memberOfHW } : {}),
+      ...(typeof bioMetricId !== 'undefined' ? { bioMetricId } : {}),
     };
 
     const user = await UserService.updateUserByAdmin(id, payload);
@@ -199,10 +188,7 @@ const searchUsersByName = async (req, res) => {
   }
 };
 
-/**
- * PUT /api/users/:id/active
- * Activate/deactivate a user (Admin only)
- */
+
 const setUserActiveStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -224,10 +210,7 @@ const setUserActiveStatus = async (req, res) => {
   }
 };
 
-/**
- * PUT /api/users/:id/profile-pic
- * Upload user profile picture and save Cloudinary URL
- */
+
 
 module.exports = {
   createUser,

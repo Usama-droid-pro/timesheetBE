@@ -15,7 +15,7 @@ const createProject = async (req, res) => {
     const { name, description, status, members } = req.body;
 
     const project = await ProjectService.createProject({ name, description, status, members });
-    
+
     return sendSuccess(res, 'Project created successfully', { project }, 201);
   } catch (error) {
     console.error('Create project error:', error);
@@ -30,8 +30,8 @@ const createProject = async (req, res) => {
 const getAllProjects = async (req, res) => {
   try {
     const projects = await ProjectService.getAllProjects();
-    
-    return sendSuccess(res, 'Projects retrieved successfully', {items : projects }, 200);
+
+    return sendSuccess(res, 'Projects retrieved successfully', { items: projects }, 200);
   } catch (error) {
     console.error('Get projects error:', error);
     return sendServerError(res, 'Failed to retrieve projects', error.message);
@@ -41,8 +41,8 @@ const getAllProjects = async (req, res) => {
 const getProjects = async (req, res) => {
   try {
     const projects = await ProjectService.getProjects();
-    
-    return sendSuccess(res, 'Projects retrieved successfully', {items : projects }, 200);
+
+    return sendSuccess(res, 'Projects retrieved successfully', { items: projects }, 200);
   } catch (error) {
     console.error('Get projects error:', error);
     return sendServerError(res, 'Failed to retrieve projects', error.message);
@@ -58,8 +58,8 @@ const deleteProject = async (req, res) => {
     const { id } = req.params;
 
     const project = await ProjectService.deleteProject(id);
-    
-    
+
+
     return sendSuccess(res, 'Project deleted successfully', { project }, 200);
   } catch (error) {
     console.error('Delete project error:', error);
