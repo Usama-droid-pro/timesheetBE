@@ -12,4 +12,8 @@ router.delete('/:id', extraHoursController.deleteExtraHours);
 
 router.get('/team-wise-work-hours', extraHoursController.getTeamWiseWorkHours);
 
+// Excel import flow
+router.post('/import/check-availability', adminMiddleware, extraHoursController.checkAvailability);
+router.post('/import', adminMiddleware, extraHoursController.importFromExcel);
+
 module.exports = router;
