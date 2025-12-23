@@ -40,28 +40,27 @@ const requireAuth = (req, res, next) => {
  * POST /api/extrahours/automation/trigger
  * Manually trigger the automation process
  */
-router.get('/automation/trigger', requireAuth, async (req, res) => {
+router.get('/automation/trigger', requireAuth, (req, res) => {
+  const { startTime, endTime } = req.body;
+
+  const customStartTime = startTime ? new Date(startTime) : null;
+  const customEndTime = endTime ? new Date(endTime) : null;
+
+  // Fire and forget
+  setImmediate(async () => {
     try {
-        const { startTime, endTime } = req.body;
-
-        // Parse custom time range if provided
-        const customStartTime = startTime ? new Date(startTime) : null;
-        const customEndTime = endTime ? new Date(endTime) : null;
-
-        // console.log('[API] Manual trigger requested by:', req.user.email);
-
-        const result = await processExtraHours(customStartTime, customEndTime);
-
-        return res.json(result);
-    } catch (error) {
-        console.error('[API] Error triggering automation:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Error triggering automation',
-            error: error.message,
-        });
+      await processExtraHours(customStartTime, customEndTime);
+    } catch (err) {
+      console.error('[BG] processExtraHours failed:', err);
     }
+  });
+
+  return res.json({
+    success: true,
+    message: 'Automation triggered',
+  });
 });
+
 
 /**
  * GET /api/extrahours/automation/status
