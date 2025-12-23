@@ -1,0 +1,19 @@
+[
+    { "name": "Osama", "email": "osama.obs@obs.com", "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW", "role": "PM", "isDeleted": false },
+    { "name": "Nayyab", "email": "nayyab.obs@obs.com", "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW", "role": "QA", "isDeleted": false },
+    { "name": "Junaid", "email": "junaid.obs@obs.com", "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW", "role": "QA", "isDeleted": false },
+    { "name": "Alina", "email": "alina.obs@obs.com", "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW", "role": "Design", "isDeleted": false },
+    { "name": "Jahanzeb", "email": "jahanzeb.obs@obs.com", "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW", "role": "Dev", "isDeleted": false },
+    { "name": "Sharjeel", "email": "sharjeel.obs@obs.com", "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW", "role": "Dev", "isDeleted": false },
+    { "name": "Fazal", "email": "fazal.obs@obs.com", "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW", "role": "Dev", "isDeleted": false },
+    { "name": "Faraz", "email": "faraz.obs@obs.com", "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW", "role": "Dev", "isDeleted": false },
+    { "name": "Aneeq", "email": "aneeq.obs@obs.com", "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW", "role": "Dev", "isDeleted": false },
+    { "name": "Ali Zahid", "email": "alizahid.obs@obs.com", "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW", "role": "Dev", "isDeleted": false },
+    { "name": "Abdul Rehman", "email": "abdulrehman.obs@obs.com", "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW", "role": "Dev", "isDeleted": false },
+    { "name": "Talha Javed", "email": "talhajaved.obs@obs.com", "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW", "role": "Dev", "isDeleted": false },
+    { "name": "Jalaal Tauseef", "email": "jalaaltauseef.obs@obs.com", "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW", "role": "Dev", "isDeleted": false },
+    { "name": "Muhammad Naeem Khan", "email": "muhammadnaeem.obs@obs.com", "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW", "role": "Dev", "isDeleted": false },
+    { "name": "Asjad Raja", "email": "asjadraja.obs@obs.com", "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW", "role": "Dev", "isDeleted": false },
+    { "name": "Usama", "email": "usama.obs@obs.com", "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW", "role": "Dev", "isDeleted": false }
+  ]
+  

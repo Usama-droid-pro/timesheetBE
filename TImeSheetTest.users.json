@@ -1,0 +1,184 @@
+[{
+  "_id": {
+    "$oid": "68fb4d3dd7e9a3b43d28ca7e"
+  },
+  "name": "Super Admin",
+  "email": "admin@obs.com",
+  "password": "$2a$10$ZVoktVYHGgUvsn4mtADueeXGCogLYC5Ya/vIioaKezXh57fDn.Y6G",
+  "role": "Admin",
+  "isDeleted": false,
+  "createdAt": {
+    "$date": "2025-10-24T09:56:13.683Z"
+  },
+  "updatedAt": {
+    "$date": "2025-11-01T20:30:39.367Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "68ff23b93a88e663c6b0b3f7"
+  },
+  "name": "Nayyab",
+  "email": "nayyabobs@gmail.com",
+  "password": "$2a$10$Se8H8KDcD.PYSpFJKqnF/uFZdoAsq1nfLT4GVVFm3Kcfu2ulz7t3.",
+  "role": "QA",
+  "isDeleted": false,
+  "createdAt": {
+    "$date": "2025-10-27T07:48:09.587Z"
+  },
+  "updatedAt": {
+    "$date": "2025-10-27T07:48:09.587Z"
+  },
+  "__v": 0
+},
+{
+  "_id": {
+    "$oid": "6904a2a9988e2a6a7facf3a5"
+  },
+  "name": "Osama",
+  "email": "osama.obs@obs.com",
+  "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW",
+  "role": "PM",
+  "isDeleted": false
+},
+{
+  "_id": {
+    "$oid": "6904a2a9988e2a6a7facf3a7"
+  },
+  "name": "Junaid",
+  "email": "junaid.obs@obs.com",
+  "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW",
+  "role": "QA",
+  "isDeleted": false
+},
+{
+  "_id": {
+    "$oid": "6904a2a9988e2a6a7facf3a8"
+  },
+  "name": "Alina",
+  "email": "alina.obs@obs.com",
+  "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW",
+  "role": "DESIGN",
+  "isDeleted": false
+},
+{
+  "_id": {
+    "$oid": "6904a2a9988e2a6a7facf3a9"
+  },
+  "name": "Jahanzeb",
+  "email": "jahanzeb.obs@obs.com",
+  "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW",
+  "role": "DEV",
+  "isDeleted": false
+},
+{
+  "_id": {
+    "$oid": "6904a2a9988e2a6a7facf3aa"
+  },
+  "name": "Sharjeel",
+  "email": "sharjeel.obs@obs.com",
+  "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW",
+  "role": "DEV",
+  "isDeleted": false
+},
+{
+  "_id": {
+    "$oid": "6904a2a9988e2a6a7facf3ab"
+  },
+  "name": "Fazal",
+  "email": "fazal.obs@obs.com",
+  "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW",
+  "role": "DEV",
+  "isDeleted": false
+},
+{
+  "_id": {
+    "$oid": "6904a2a9988e2a6a7facf3ac"
+  },
+  "name": "Faraz",
+  "email": "faraz.obs@obs.com",
+  "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW",
+  "role": "DEV",
+  "isDeleted": false
+},
+{
+  "_id": {
+    "$oid": "6904a2a9988e2a6a7facf3ad"
+  },
+  "name": "Aneeq",
+  "email": "aneeq.obs@obs.com",
+  "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW",
+  "role": "DEV",
+  "isDeleted": false
+},
+{
+  "_id": {
+    "$oid": "6904a2a9988e2a6a7facf3ae"
+  },
+  "name": "Ali Zahid",
+  "email": "alizahid.obs@obs.com",
+  "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW",
+  "role": "DEV",
+  "isDeleted": false
+},
+{
+  "_id": {
+    "$oid": "6904a2a9988e2a6a7facf3af"
+  },
+  "name": "Abdul Rehman",
+  "email": "abdulrehman.obs@obs.com",
+  "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW",
+  "role": "DEV",
+  "isDeleted": false
+},
+{
+  "_id": {
+    "$oid": "6904a2a9988e2a6a7facf3b0"
+  },
+  "name": "Talha Javed",
+  "email": "talhajaved.obs@obs.com",
+  "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW",
+  "role": "DEV",
+  "isDeleted": false
+},
+{
+  "_id": {
+    "$oid": "6904a2a9988e2a6a7facf3b1"
+  },
+  "name": "Jalaal Tauseef",
+  "email": "jalaaltauseef.obs@obs.com",
+  "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW",
+  "role": "DEV",
+  "isDeleted": false
+},
+{
+  "_id": {
+    "$oid": "6904a2a9988e2a6a7facf3b2"
+  },
+  "name": "Muhammad Naeem Khan",
+  "email": "muhammadnaeem.obs@obs.com",
+  "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW",
+  "role": "DEV",
+  "isDeleted": false
+},
+{
+  "_id": {
+    "$oid": "6904a2a9988e2a6a7facf3b3"
+  },
+  "name": "Asjad Raja",
+  "email": "asjadraja.obs@obs.com",
+  "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW",
+  "role": "DEV",
+  "isDeleted": false
+},
+{
+  "_id": {
+    "$oid": "6904a2a9988e2a6a7facf3b4"
+  },
+  "name": "Usama fayaz",
+  "email": "usama.obs@obs.com",
+  "password": "$2a$10$zWidk9UPhAcxwyVi2rtxEuolSyy8kbj.ty6lF64MUCKqEVEIZsvZW",
+  "role": "DEV",
+  "isDeleted": false
+}]
