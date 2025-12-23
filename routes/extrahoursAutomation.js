@@ -40,7 +40,7 @@ const requireAuth = (req, res, next) => {
  * POST /api/extrahours/automation/trigger
  * Manually trigger the automation process
  */
-router.post('/automation/trigger', requireAuth, async (req, res) => {
+router.get('/automation/trigger', requireAuth, async (req, res) => {
     try {
         const { startTime, endTime } = req.body;
 
