@@ -463,7 +463,7 @@ async function processExtraHours(customStartTime = null, customEndTime = null) {
         console.log('========================================\n');
 
         const endTime = customEndTime || new Date();
-        const fetchStartTime = customStartTime || dayjs().subtract(4, 'days').startOf('day').toDate();
+        const fetchStartTime = customStartTime || dayjs().subtract(3, 'days').startOf('day').toDate();
 
         console.log(`[AUTOMATION] Time Range: ${dayjs(fetchStartTime).format('YYYY-MM-DD HH:mm')} to ${dayjs(endTime).format('YYYY-MM-DD HH:mm')}`);
 
