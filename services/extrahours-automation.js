@@ -463,7 +463,7 @@ async function processExtraHours(customStartTime = null, customEndTime = null) {
         console.log('========================================\n');
 
         const endTime = customEndTime || new Date();
-        const fetchStartTime = customStartTime || dayjs().subtract(1, 'month').date(26).startOf('day').toDate();
+        const fetchStartTime = customStartTime || dayjs().subtract(4, 'days').startOf('day').toDate();
 
         console.log(`[AUTOMATION] Time Range: ${dayjs(fetchStartTime).format('YYYY-MM-DD HH:mm')} to ${dayjs(endTime).format('YYYY-MM-DD HH:mm')}`);
 
@@ -493,19 +493,20 @@ async function processExtraHours(customStartTime = null, customEndTime = null) {
 
         console.log(`[AUTOMATION] ✓ Found ${extraHoursData.length} entries with extra hours\n`);
 
-        // Save to database
-        console.log('[AUTOMATION] Step 4: Saving to database...');
+        // Save to database in parallel for better performance
+        console.log('[AUTOMATION] Step 4: Saving to database (parallel)...');
         let saved = 0;
         let skipped = 0;
 
-        for (const data of extraHoursData) {
-            const result = await saveExtraHours(data);
+        const results = await Promise.all(extraHoursData.map(data => saveExtraHours(data)));
+        
+        results.forEach(result => {
             if (result.success) {
                 saved++;
             } else {
                 skipped++;
             }
-        }
+        });
 
         console.log(`[AUTOMATION] ✓ Saved: ${saved}, Skipped: ${skipped}\n`);
 
