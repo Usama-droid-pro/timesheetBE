@@ -214,6 +214,7 @@ async function getAttendanceLogs(filters) {
 async function getFilteredLogs({ userId, month, date }) {
     let query = {};
 
+    if(userId) query.userId = userId;
     // Use UTC for date matching to ignore server/client timezone offsets
     if (month) {
         const startOfMonth = dayjs.utc(month).startOf('month').toDate();
