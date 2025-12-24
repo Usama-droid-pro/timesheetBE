@@ -190,7 +190,9 @@ async function getAttendanceLogs(filters) {
     if (userId) query.userId = userId;
 
     if (date) {
-        query.date = dayjs(date).startOf('day').toDate();
+        const start = dayjs(date).startOf('day').toDate();
+        const end = dayjs(date).endOf('day').toDate();
+        query.date = { $gte: start, $lte: end };
     } else if (startDate && endDate) {
         query.date = {
             $gte: dayjs(startDate).startOf('day').toDate(),
@@ -216,7 +218,9 @@ async function getFilteredLogs({ userId, month, date }) {
         const endOfMonth = dayjs(month).endOf('month').toDate();
         query.date = { $gte: startOfMonth, $lte: endOfMonth };
     } else if (date) {
-        query.date = dayjs(date).startOf('day').toDate();
+        const start = dayjs(date).startOf('day').toDate();
+        const end = dayjs(date).endOf('day').toDate();
+        query.date = { $gte: start, $lte: end };
     }
 
     return await Attendance.find(query)
