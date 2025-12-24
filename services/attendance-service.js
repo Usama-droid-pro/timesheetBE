@@ -14,17 +14,27 @@ async function syncAttendancePunches(startTime, endTime) {
         console.log(`[ATTENDANCE SYNC] Starting sync from ${startTime} to ${endTime}`);
 
         const events = await fetchAllBiometricEvents(startTime, endTime);
-        if (events.length === 0) return { processed: 0, updated: 0, errors: 0 };
+        if (!events || events.length === 0) {
+            return { processed: 0, updated: 0, errors: 0 };
+        }
 
         console.log(`[ATTENDANCE SYNC] Fetched ${events.length} raw events`);
 
-        // 1. Bulk Fetch Users
-        const biometricIds = [...new Set(events.map(e => e.employeeNoString).filter(Boolean))];
-        const users = await User.find({ bioMetricId: { $in: biometricIds }, isDeleted: false });
+        // 1. Bulk Fetch Users (awaited)
+        const biometricIds = [...new Set(
+            events.map(e => e.employeeNoString).filter(Boolean)
+        )];
+
+        const users = await User.find({
+            bioMetricId: { $in: biometricIds },
+            isDeleted: false
+        });
+
         const userMap = new Map(users.map(u => [u.bioMetricId, u]));
 
-        // 2. Group Events by UserID and Logical Date
+        // 2. Group Events
         const groups = {};
+
         for (const event of events) {
             const user = userMap.get(event.employeeNoString);
             const eventTime = parseTime(event.time);
@@ -48,70 +58,76 @@ async function syncAttendancePunches(startTime, endTime) {
             });
         }
 
-        const stats = { processed: events.length, updated: 0, errors: 0 };
+        const stats = {
+            processed: events.length,
+            updated: 0,
+            errors: 0
+        };
+
         const groupList = Object.values(groups);
 
-        // 3. Process in SMALL batches (serverless safe)
-        const BATCH_SIZE = 5;
+        // 3. STRICTLY SEQUENTIAL processing
+        for (const group of groupList) {
+            try {
+                let record = await Attendance.findOne({
+                    userId: group.userId,
+                    date: group.date
+                });
 
-        for (let i = 0; i < groupList.length; i += BATCH_SIZE) {
-            const batch = groupList.slice(i, i + BATCH_SIZE);
-
-            for (const group of batch) {
-                try {
-                    let record = await Attendance.findOne({
+                if (!record) {
+                    record = new Attendance({
                         userId: group.userId,
-                        date: group.date
+                        date: group.date,
+                        punches: group.punches,
+                        status: 'Present'
                     });
 
-                    if (!record) {
-                        record = new Attendance({
-                            userId: group.userId,
-                            date: group.date,
-                            punches: group.punches,
-                            status: 'Present'
-                        });
-                        await record.save();
-                        stats.updated += group.punches.length;
-                    } else {
-                        let changed = false;
-                        let newPunchesAdded = 0;
-
-                        if (record.status !== 'Present') {
-                            record.status = 'Present';
-                            changed = true;
-                        }
-
-                        for (const p of group.punches) {
-                            const exists = record.punches.some(existing => existing.time === p.time);
-                            if (!exists) {
-                                record.punches.push(p);
-                                newPunchesAdded++;
-                                changed = true;
-                            }
-                        }
-
-                        if (changed) {
-                            if (newPunchesAdded > 0) {
-                                record.punches.sort((a, b) => a.rawTime - b.rawTime);
-                            }
-                            await record.save();
-                            stats.updated++;
-                        }
-                    }
-                } catch (err) {
-                    console.error(
-                        `[ATTENDANCE SYNC] Error processing group ${group.userId} on ${group.date}:`,
-                        err
-                    );
-                    stats.errors++;
+                    await record.save();
+                    stats.updated += group.punches.length;
+                    continue;
                 }
+
+                let changed = false;
+                let newPunchesAdded = 0;
+
+                if (record.status !== 'Present') {
+                    record.status = 'Present';
+                    changed = true;
+                }
+
+                for (const p of group.punches) {
+                    const exists = record.punches.some(
+                        existing => existing.time === p.time
+                    );
+
+                    if (!exists) {
+                        record.punches.push(p);
+                        newPunchesAdded++;
+                        changed = true;
+                    }
+                }
+
+                if (changed) {
+                    if (newPunchesAdded > 0) {
+                        record.punches.sort((a, b) => a.rawTime - b.rawTime);
+                    }
+                    await record.save();
+                    stats.updated++;
+                }
+
+            } catch (err) {
+                console.error(
+                    `[ATTENDANCE SYNC] Error processing group ${group.userId} on ${group.date}:`,
+                    err
+                );
+                stats.errors++;
             }
         }
 
         return stats;
+
     } catch (error) {
-        console.error('[ATTENDANCE SYNC] Error:', error);
+        console.error('[ATTENDANCE SYNC] Fatal Error:', error);
         throw error;
     }
 }
