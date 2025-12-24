@@ -12,8 +12,10 @@ const { fetchAllBiometricEvents, parseTime } = require('./extrahours-automation'
 async function syncAttendancePunches(startTime, endTime) {
     try {
         console.log(`[ATTENDANCE SYNC] Starting sync from ${startTime} to ${endTime}`);
+
         const events = await fetchAllBiometricEvents(startTime, endTime);
         if (events.length === 0) return { processed: 0, updated: 0, errors: 0 };
+
         console.log(`[ATTENDANCE SYNC] Fetched ${events.length} raw events`);
 
         // 1. Bulk Fetch Users
@@ -28,11 +30,10 @@ async function syncAttendancePunches(startTime, endTime) {
             const eventTime = parseTime(event.time);
             if (!user || !eventTime) continue;
 
-            // Use UTC to avoid timezone shifts when storing the logical date part
-            const dateObj = dayjs.utc(eventTime.format('YYYY-MM-DD')).toDate();
             const dateKey = eventTime.format('YYYY-MM-DD');
+            const dateObj = dayjs.utc(dateKey).toDate();
             const key = `${user._id}_${dateKey}`;
-            
+
             if (!groups[key]) {
                 groups[key] = {
                     userId: user._id,
@@ -40,6 +41,7 @@ async function syncAttendancePunches(startTime, endTime) {
                     punches: []
                 };
             }
+
             groups[key].punches.push({
                 time: eventTime.format('HH:mm:ss'),
                 rawTime: eventTime.toDate()
@@ -49,52 +51,63 @@ async function syncAttendancePunches(startTime, endTime) {
         const stats = { processed: events.length, updated: 0, errors: 0 };
         const groupList = Object.values(groups);
 
-        // 3. Process each user+date group in parallel
-        await Promise.all(groupList.map(async (group) => {
-            try {
-                let record = await Attendance.findOne({ userId: group.userId, date: group.date });
+        // 3. Process in SMALL batches (serverless safe)
+        const BATCH_SIZE = 5;
 
-                if (!record) {
-                    record = new Attendance({
+        for (let i = 0; i < groupList.length; i += BATCH_SIZE) {
+            const batch = groupList.slice(i, i + BATCH_SIZE);
+
+            for (const group of batch) {
+                try {
+                    let record = await Attendance.findOne({
                         userId: group.userId,
-                        date: group.date,
-                        punches: group.punches,
-                        status: 'Present'
+                        date: group.date
                     });
-                    await record.save();
-                    stats.updated += group.punches.length;
-                } else {
-                    let changed = false;
 
-                    // Ensure status is 'Present' if we have punches during sync
-                    if (record.status !== 'Present') {
-                        record.status = 'Present';
-                        changed = true;
-                    }
+                    if (!record) {
+                        record = new Attendance({
+                            userId: group.userId,
+                            date: group.date,
+                            punches: group.punches,
+                            status: 'Present'
+                        });
+                        await record.save();
+                        stats.updated += group.punches.length;
+                    } else {
+                        let changed = false;
+                        let newPunchesAdded = 0;
 
-                    let newPunchesAdded = 0;
-                    for (const p of group.punches) {
-                        const exists = record.punches.some(existing => existing.time === p.time);
-                        if (!exists) {
-                            record.punches.push(p);
-                            newPunchesAdded++;
+                        if (record.status !== 'Present') {
+                            record.status = 'Present';
                             changed = true;
                         }
-                    }
 
-                    if (changed) {
-                        if (newPunchesAdded > 0) {
-                            record.punches.sort((a, b) => a.rawTime - b.rawTime);
+                        for (const p of group.punches) {
+                            const exists = record.punches.some(existing => existing.time === p.time);
+                            if (!exists) {
+                                record.punches.push(p);
+                                newPunchesAdded++;
+                                changed = true;
+                            }
                         }
-                        await record.save();
-                        stats.updated++;
+
+                        if (changed) {
+                            if (newPunchesAdded > 0) {
+                                record.punches.sort((a, b) => a.rawTime - b.rawTime);
+                            }
+                            await record.save();
+                            stats.updated++;
+                        }
                     }
+                } catch (err) {
+                    console.error(
+                        `[ATTENDANCE SYNC] Error processing group ${group.userId} on ${group.date}:`,
+                        err
+                    );
+                    stats.errors++;
                 }
-            } catch (err) {
-                console.error(`[ATTENDANCE SYNC] Error processing group ${group.userId} on ${group.date}:`, err);
-                stats.errors++;
             }
-        }));
+        }
 
         return stats;
     } catch (error) {
@@ -102,6 +115,7 @@ async function syncAttendancePunches(startTime, endTime) {
         throw error;
     }
 }
+
 
 /**
  * Generates a report for a user and month.
