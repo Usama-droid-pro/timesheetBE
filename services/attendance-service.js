@@ -11,50 +11,75 @@ async function syncAttendancePunches(startTime, endTime) {
     try {
         console.log(`[ATTENDANCE SYNC] Starting sync from ${startTime} to ${endTime}`);
         const events = await fetchAllBiometricEvents(startTime, endTime);
+        if (events.length === 0) return { processed: 0, updated: 0, errors: 0 };
         console.log(`[ATTENDANCE SYNC] Fetched ${events.length} raw events`);
 
-        const stats = { processed: 0, updated: 0, errors: 0 };
+        // 1. Bulk Fetch Users
+        const biometricIds = [...new Set(events.map(e => e.employeeNoString).filter(Boolean))];
+        const users = await User.find({ bioMetricId: { $in: biometricIds }, isDeleted: false });
+        const userMap = new Map(users.map(u => [u.bioMetricId, u]));
 
+        // 2. Group Events by UserID and Logical Date
+        const groups = {};
         for (const event of events) {
-            const biometricId = event.employeeNoString;
-            const eventTime = parseTime(event.time); // Already returns naive moment
+            const user = userMap.get(event.employeeNoString);
+            const eventTime = parseTime(event.time);
+            if (!user || !eventTime) continue;
 
-            if (!biometricId || !eventTime) continue;
-
-            const user = await User.findOne({ bioMetricId: biometricId, isDeleted: false });
-            if (!user) {
-                // console.log(`[ATTENDANCE SYNC] User not found for biometricId: ${biometricId}`);
-                continue;
-            }
-
-            const date = eventTime.clone().startOf('day').toDate();
-            const punchStr = eventTime.format('HH:mm:ss');
-
-            // Find or create attendance record for this day
-            let record = await Attendance.findOne({ userId: user._id, date });
-
-            if (!record) {
-                record = new Attendance({
+            const dateObj = eventTime.clone().startOf('day').toDate();
+            const dateKey = eventTime.format('YYYY-MM-DD');
+            const key = `${user._id}_${dateKey}`;
+            
+            if (!groups[key]) {
+                groups[key] = {
                     userId: user._id,
-                    date,
-                    punches: [{ time: punchStr, rawTime: eventTime.toDate() }],
-                    status: 'Present'
-                });
-                await record.save();
-                stats.updated++;
-            } else {
-                // Check if punch already exists
-                const exists = record.punches.some(p => p.time === punchStr);
-                if (!exists) {
-                    record.punches.push({ time: punchStr, rawTime: eventTime.toDate() });
-                    // Sort punches by time
-                    record.punches.sort((a, b) => a.rawTime - b.rawTime);
-                    await record.save();
-                    stats.updated++;
-                }
+                    date: dateObj,
+                    punches: []
+                };
             }
-            stats.processed++;
+            groups[key].punches.push({
+                time: eventTime.format('HH:mm:ss'),
+                rawTime: eventTime.toDate()
+            });
         }
+
+        const stats = { processed: events.length, updated: 0, errors: 0 };
+        const groupList = Object.values(groups);
+
+        // 3. Process each user+date group in parallel
+        await Promise.all(groupList.map(async (group) => {
+            try {
+                let record = await Attendance.findOne({ userId: group.userId, date: group.date });
+
+                if (!record) {
+                    record = new Attendance({
+                        userId: group.userId,
+                        date: group.date,
+                        punches: group.punches,
+                        status: 'Present'
+                    });
+                    await record.save();
+                    stats.updated += group.punches.length;
+                } else {
+                    let newPunchesAdded = 0;
+                    for (const p of group.punches) {
+                        const exists = record.punches.some(existing => existing.time === p.time);
+                        if (!exists) {
+                            record.punches.push(p);
+                            newPunchesAdded++;
+                        }
+                    }
+                    if (newPunchesAdded > 0) {
+                        record.punches.sort((a, b) => a.rawTime - b.rawTime);
+                        await record.save();
+                        stats.updated += newPunchesAdded;
+                    }
+                }
+            } catch (err) {
+                console.error(`[ATTENDANCE SYNC] Error processing group ${group.userId} on ${group.date}:`, err);
+                stats.errors++;
+            }
+        }));
 
         return stats;
     } catch (error) {
