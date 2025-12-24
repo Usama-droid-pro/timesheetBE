@@ -579,8 +579,9 @@ module.exports = {
     processExtraHours,
     startCronJob,
     stopCronJob,
-
+fetchAllBiometricEvents,
     getAutomationState,
+    parseTime,
 
     // Configuration (for customization)
     CONFIG,

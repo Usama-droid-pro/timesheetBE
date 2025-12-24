@@ -16,6 +16,7 @@ const reportRoutes = require('./routes/reportRoutes');
 const teamRoutes = require('./routes/teamRoutes');
 const extraHoursRoutes = require('./routes/extraHoursRoutes');
 const extraHoursAutomaionRoutes = require('./routes/extrahoursAutomation')
+const attendanceRoutes = require('./routes/attendanceRoutes');
 
 // Import middleware
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
@@ -59,6 +60,7 @@ app.get('/health', (req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/extrahours-automation', extraHoursAutomaionRoutes);
+app.use('/api/attendance', attendanceRoutes);
 app.use(authMiddleware);
 app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
