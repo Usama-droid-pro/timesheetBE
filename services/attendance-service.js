@@ -1,4 +1,6 @@
 const dayjs = require('dayjs');
+const utc = require('dayjs/plugin/utc');
+dayjs.extend(utc);
 const Attendance = require('../models/Attendance');
 const User = require('../models/User');
 const { fetchAllBiometricEvents, parseTime } = require('./extrahours-automation');
@@ -26,7 +28,8 @@ async function syncAttendancePunches(startTime, endTime) {
             const eventTime = parseTime(event.time);
             if (!user || !eventTime) continue;
 
-            const dateObj = eventTime.clone().startOf('day').toDate();
+            // Use UTC to avoid timezone shifts when storing the logical date part
+            const dateObj = dayjs.utc(eventTime.format('YYYY-MM-DD')).toDate();
             const dateKey = eventTime.format('YYYY-MM-DD');
             const key = `${user._id}_${dateKey}`;
             
@@ -159,7 +162,7 @@ async function getUserAttendanceReport(userId, monthYear) {
  * Manually mark or override attendance status.
  */
 async function markAttendanceManual({ userId, date, adminStatus, note }) {
-    const normalizedDate = dayjs(date).startOf('day').toDate();
+    const normalizedDate = dayjs.utc(dayjs(date).format('YYYY-MM-DD')).toDate();
     let record = await Attendance.findOne({ userId, date: normalizedDate });
 
     if (!record) {
@@ -190,13 +193,13 @@ async function getAttendanceLogs(filters) {
     if (userId) query.userId = userId;
 
     if (date) {
-        const start = dayjs(date).startOf('day').toDate();
-        const end = dayjs(date).endOf('day').toDate();
+        const start = dayjs.utc(date).startOf('day').toDate();
+        const end = dayjs.utc(date).endOf('day').toDate();
         query.date = { $gte: start, $lte: end };
     } else if (startDate && endDate) {
         query.date = {
-            $gte: dayjs(startDate).startOf('day').toDate(),
-            $lte: dayjs(endDate).endOf('day').toDate()
+            $gte: dayjs.utc(startDate).startOf('day').toDate(),
+            $lte: dayjs.utc(endDate).endOf('day').toDate()
         };
     }
 
@@ -211,15 +214,14 @@ async function getAttendanceLogs(filters) {
 async function getFilteredLogs({ userId, month, date }) {
     let query = {};
 
-    if (userId) query.userId = userId;
-
+    // Use UTC for date matching to ignore server/client timezone offsets
     if (month) {
-        const startOfMonth = dayjs(month).startOf('month').toDate();
-        const endOfMonth = dayjs(month).endOf('month').toDate();
+        const startOfMonth = dayjs.utc(month).startOf('month').toDate();
+        const endOfMonth = dayjs.utc(month).endOf('month').toDate();
         query.date = { $gte: startOfMonth, $lte: endOfMonth };
     } else if (date) {
-        const start = dayjs(date).startOf('day').toDate();
-        const end = dayjs(date).endOf('day').toDate();
+        const start = dayjs.utc(date).startOf('day').toDate();
+        const end = dayjs.utc(date).endOf('day').toDate();
         query.date = { $gte: start, $lte: end };
     }
 

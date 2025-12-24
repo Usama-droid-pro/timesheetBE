@@ -3,7 +3,7 @@ const router = express.Router();
 const attendanceController = require('../controllers/attendanceController');
 
 // Sync endpoints
-router.post('/sync', attendanceController.triggerSync);
+router.get('/sync', attendanceController.triggerSync);
 
 // Log endpoints
 router.get('/logs', attendanceController.getLogs);
