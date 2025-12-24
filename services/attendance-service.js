@@ -64,18 +64,30 @@ async function syncAttendancePunches(startTime, endTime) {
                     await record.save();
                     stats.updated += group.punches.length;
                 } else {
+                    let changed = false;
+
+                    // Ensure status is 'Present' if we have punches during sync
+                    if (record.status !== 'Present') {
+                        record.status = 'Present';
+                        changed = true;
+                    }
+
                     let newPunchesAdded = 0;
                     for (const p of group.punches) {
                         const exists = record.punches.some(existing => existing.time === p.time);
                         if (!exists) {
                             record.punches.push(p);
                             newPunchesAdded++;
+                            changed = true;
                         }
                     }
-                    if (newPunchesAdded > 0) {
-                        record.punches.sort((a, b) => a.rawTime - b.rawTime);
+
+                    if (changed) {
+                        if (newPunchesAdded > 0) {
+                            record.punches.sort((a, b) => a.rawTime - b.rawTime);
+                        }
                         await record.save();
-                        stats.updated += newPunchesAdded;
+                        stats.updated++;
                     }
                 }
             } catch (err) {

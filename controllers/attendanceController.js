@@ -1,8 +1,6 @@
 const attendanceService = require('../services/attendance-service');
 const dayjs = require('dayjs');
-/**
- * Mark or override attendance status manually by Admin.
- */
+
 exports.markAttendance = async (req, res) => {
     try {
         const { userId, date, adminStatus, note } = req.body;
@@ -18,9 +16,7 @@ exports.markAttendance = async (req, res) => {
     }
 };
 
-/**
- * Get attendance logs with filters.
- */
+
 exports.getLogs = async (req, res) => {
     try {
         const logs = await attendanceService.getAttendanceLogs(req.query);
@@ -31,9 +27,6 @@ exports.getLogs = async (req, res) => {
     }
 };
 
-/**
- * Get logs with specific filters (by month OR by date, optional userId).
- */
 exports.getLogsWithFilter = async (req, res) => {
     try {
         const logs = await attendanceService.getFilteredLogs(req.query);
@@ -44,9 +37,6 @@ exports.getLogsWithFilter = async (req, res) => {
     }
 };
 
-/**
- * Get monthly attendance report for a user.
- */
 exports.getReport = async (req, res) => {
     try {
         const { userId, month } = req.query; // month format: 'YYYY-MM'
@@ -62,9 +52,6 @@ exports.getReport = async (req, res) => {
     }
 };
 
-/**
- * Trigger biometric sync manually or via external cron.
- */
 exports.triggerSync = async (req, res) => {
     try {
         const startDate = dayjs().subtract(10, 'minutes').toDate(); 
