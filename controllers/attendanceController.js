@@ -16,7 +16,6 @@ exports.markAttendance = async (req, res) => {
     }
 };
 
-
 exports.getLogs = async (req, res) => {
     try {
         const logs = await attendanceService.getAttendanceLogs(req.query);
@@ -55,7 +54,7 @@ exports.getReport = async (req, res) => {
 exports.triggerSync = async (req, res) => {
     try {
         const startDate = dayjs().subtract(10, 'minutes').toDate(); 
-                // const startDate = dayjs().startOf("month").toDate();
+        // const startDate = dayjs().startOf("month").toDate();
 
         const endDate = dayjs().toDate();
         const stats = await attendanceService.syncAttendancePunches(startDate, endDate);
