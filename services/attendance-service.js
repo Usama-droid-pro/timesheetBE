@@ -20,18 +20,18 @@ async function syncAttendancePunches(startTime, endTime) {
 
         console.log(`[ATTENDANCE SYNC] Fetched ${events.length} raw events`);
 
-        const biometricIds = [...new Set(
-            events.map(e => e.employeeNoString).filter(Boolean)
-        )];
+        // Extract unique biometric IDs efficiently
+        const biometricIds = [...new Set(events.map(e => e.employeeNoString).filter(Boolean))];
 
+        // Fetch users in single query
         const users = await User.find({
             bioMetricId: { $in: biometricIds },
             isDeleted: false
-        }).lean(); // Add .lean() for better performance
+        }).lean(); // Use lean() to avoid Mongoose overhead
 
         const userMap = new Map(users.map(u => [u.bioMetricId, u]));
 
-        // Group Events
+        // Group events by user and date
         const groups = {};
         for (const event of events) {
             const user = userMap.get(event.employeeNoString);
@@ -58,44 +58,101 @@ async function syncAttendancePunches(startTime, endTime) {
 
         const groupList = Object.values(groups);
         
-        // ✅ BULK OPERATIONS - 10-50x faster
+        // Pre-fetch all attendance records in batch
+        const attendanceRecords = await Attendance.find({
+            userId: { $in: [...new Set(groupList.map(g => g.userId))] },
+            date: { $in: [...new Set(groupList.map(g => g.date))] }
+        });
+
+        const attendanceMap = new Map(
+            attendanceRecords.map(r => [`${r.userId}_${r.date.toISOString().split('T')[0]}`, r])
+        );
+
+        // Prepare bulk operations
         const bulkOps = [];
-        const stats = {
-            processed: events.length,
-            updated: 0,
-            errors: 0
-        };
+        const createDocs = [];
+        let stats = { processed: events.length, updated: 0, errors: 0 };
 
         for (const group of groupList) {
-            // Sort punches before storing
-            group.punches.sort((a, b) => a.rawTime - b.rawTime);
-            
-            bulkOps.push({
-                updateOne: {
-                    filter: {
+            try {
+                const dateKey = group.date.toISOString().split('T')[0];
+                const mapKey = `${group.userId}_${dateKey}`;
+                const existingRecord = attendanceMap.get(mapKey);
+
+                if (!existingRecord) {
+                    // Prepare for batch insert
+                    createDocs.push({
                         userId: group.userId,
-                        date: group.date
-                    },
-                    update: {
-                        $set: { status: 'Present' },
-                        $addToSet: { 
-                            punches: { 
-                                $each: group.punches 
-                            } 
-                        }
-                    },
-                    upsert: true
+                        date: group.date,
+                        punches: group.punches,
+                        status: 'Present'
+                    });
+                    stats.updated += group.punches.length;
+                    continue;
                 }
-            });
+
+                // Check if update needed
+                let changed = false;
+                let newPunchesAdded = 0;
+
+                const statusChanged = existingRecord.status !== 'Present';
+                const existingTimes = new Set(existingRecord.punches.map(p => p.time));
+                const newPunches = group.punches.filter(p => !existingTimes.has(p.time));
+
+                if (statusChanged || newPunches.length > 0) {
+                    const updatedPunches = [
+                        ...existingRecord.punches,
+                        ...newPunches
+                    ].sort((a, b) => a.rawTime - b.rawTime);
+
+                    bulkOps.push({
+                        updateOne: {
+                            filter: { _id: existingRecord._id },
+                            update: {
+                                $set: {
+                                    status: 'Present',
+                                    punches: updatedPunches
+                                }
+                            }
+                        }
+                    });
+
+                    stats.updated++;
+                }
+
+            } catch (err) {
+                console.error(`[ATTENDANCE SYNC] Error processing group ${group.userId}:`, err.message);
+                stats.errors++;
+            }
         }
 
-        // Execute all updates in ONE operation
+        // Execute all operations in parallel
+        const operations = [];
+
+        if (createDocs.length > 0) {
+            operations.push(
+                Attendance.insertMany(createDocs, { ordered: false }).catch(err => {
+                    console.error('[ATTENDANCE SYNC] Batch insert error:', err.message);
+                    stats.errors += createDocs.length;
+                })
+            );
+        }
+
         if (bulkOps.length > 0) {
-            const result = await Attendance.bulkWrite(bulkOps, { ordered: false });
-            stats.updated = result.upsertedCount + result.modifiedCount;
+            operations.push(
+                Attendance.bulkWrite(bulkOps, { ordered: false }).catch(err => {
+                    console.error('[ATTENDANCE SYNC] Bulk write error:', err.message);
+                    stats.errors += bulkOps.length;
+                })
+            );
         }
 
-        console.log(`[ATTENDANCE SYNC] Completed:`, stats);
+        // Wait for all operations to complete
+        if (operations.length > 0) {
+            await Promise.all(operations);
+        }
+
+        console.log(`[ATTENDANCE SYNC] Completed: ${stats.updated} updated, ${stats.errors} errors`);
         return stats;
 
     } catch (error) {
@@ -103,6 +160,7 @@ async function syncAttendancePunches(startTime, endTime) {
         throw error;
     }
 }
+
 
 /**
  * Generates a report for a user and month.
