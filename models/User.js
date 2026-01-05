@@ -72,13 +72,30 @@ const userSchema = new mongoose.Schema({
     type: String,
     required: false,
     unique: true
+  },
+  // Attendance-related fields
+  officeStartTime: {
+    type: String,
+    default: null,
+    match: /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+  },
+  officeEndTime: {
+    type: String,
+    default: null,
+    match: /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
+  },
+  payoutMultiplier: {
+    type: Number,
+    default: 1,
+    min: 0,
+    max: 10
   }
 }, {
   timestamps: true
 });
 
 // Index for email uniqueness
-userSchema.index({ email: 1 }, { unique: true });
+// userSchema.index({ email: 1 }, { unique: true });
 
 // Index for soft delete queries
 userSchema.index({ isDeleted: 1 });

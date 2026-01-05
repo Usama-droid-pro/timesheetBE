@@ -4,8 +4,6 @@ const cors = require('cors');
 require('dotenv').config();
 const { authMiddleware } = require("./middlewares/authMiddleware");
 const mongoSanitize = require('express-mongo-sanitize');
-const { startCronJob, stopCronJob } = require('./services/extrahours-automation');
-
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -14,15 +12,17 @@ const projectRoutes = require('./routes/projectRoutes');
 const tasklogRoutes = require('./routes/tasklogRoutes');
 const reportRoutes = require('./routes/reportRoutes');
 const teamRoutes = require('./routes/teamRoutes');
-const extraHoursRoutes = require('./routes/extraHoursRoutes');
-const extraHoursAutomaionRoutes = require('./routes/extrahoursAutomation')
-const attendanceRoutes = require('./routes/attendanceRoutes');
+
+// NEW: Attendance system routes
+const systemSettingsRoutes = require('./routes/systemSettingsRoutes');
+const bufferCounterRoutes = require('./routes/bufferCounterRoutes');
+const attendanceSystemRoutes = require('./routes/attendanceSystemRoutes');
+const attendanceAutomationRoute = require('./routes/attendanceAutomationRoute');
 
 // Import middleware
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 
-// Import utilities
-// const seedAdmin = require('./utils/seedAdmin');
+
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -59,15 +59,18 @@ app.get('/health', (req, res) => {
 
 // API Routes
 app.use('/api/auth', authRoutes);
-app.use('/api/extrahours-automation', extraHoursAutomaionRoutes);
-app.use('/api/attendance', attendanceRoutes);
+app.use("/api/attendance-automation", attendanceAutomationRoute)
 app.use(authMiddleware);
 app.use('/api/users', userRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/tasklogs', tasklogRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/teams', teamRoutes);
-app.use('/api/extra-hours', extraHoursRoutes);
+
+// NEW: Attendance system routes
+app.use('/api/system-settings', systemSettingsRoutes);
+app.use('/api/buffer-counter', bufferCounterRoutes);
+app.use('/api/attendance-system', attendanceSystemRoutes);
 
 
 // 404 handler for undefined routes
@@ -93,11 +96,6 @@ const connectDB = async () => {
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
     // startCronJob();
 
-
-    // Seed admin user after successful connection (only in non-Vercel environment)
-    // if (process.env.VERCEL !== '1') {
-    //   await seedAdmin();
-    // }
   } catch (error) {
     console.error('❌ MongoDB connection error:', error);
     process.exit(1);

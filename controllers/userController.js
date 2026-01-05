@@ -150,7 +150,7 @@ const updateUserByAdmin = async (req, res) => {
     }
 
     console.log("req.body", req.body)
-    const { email, password, isAdmin, memberOfHW, bioMetricId } = req.body;
+    const { email, password, isAdmin, memberOfHW, bioMetricId, officeStartTime, officeEndTime, payoutMultiplier } = req.body;
 
     const payload = {
       ...(typeof email !== 'undefined' ? { email } : {}),
@@ -158,6 +158,9 @@ const updateUserByAdmin = async (req, res) => {
       ...(typeof isAdmin !== 'undefined' ? { isAdmin } : {}),
       ...(typeof memberOfHW !== 'undefined' ? { memberOfHW } : {}),
       ...(typeof bioMetricId !== 'undefined' ? { bioMetricId } : {}),
+      ...(typeof officeStartTime !== 'undefined' ? { officeStartTime } : {}),
+      ...(typeof officeEndTime !== 'undefined' ? { officeEndTime } : {}),
+      ...(typeof payoutMultiplier !== 'undefined' ? { payoutMultiplier } : {}),
     };
 
     const user = await UserService.updateUserByAdmin(id, payload);

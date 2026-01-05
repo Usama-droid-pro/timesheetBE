@@ -8,20 +8,11 @@ const express = require('express');
 const router = express.Router();
 const dayjs = require('dayjs');
 const {
-    processExtraHours,
-    startCronJob,
-    stopCronJob,
+    processAttendance,
     getAutomationState,
     CONFIG,
-} = require('../services/extrahours-automation');
+} = require('../services/attendance-automation');
 
-// ===================================================================
-// MIDDLEWARE
-// ===================================================================
-
-/**
- * Authentication middleware (customize based on your auth system)
- */
 const requireAuth = (req, res, next) => {
 
     //   const authHeader = req.headers.authorization;
@@ -32,14 +23,6 @@ const requireAuth = (req, res, next) => {
     next();
 };
 
-// ===================================================================
-// ROUTES
-// ===================================================================
-
-/**
- * POST /api/extrahours/automation/trigger
- * Manually trigger the automation process
- */
 router.get('/automation/trigger', requireAuth, async (req, res) => {
     try {
         const { startTime, endTime } = req.body;
@@ -50,7 +33,7 @@ router.get('/automation/trigger', requireAuth, async (req, res) => {
 
         // console.log('[API] Manual trigger requested by:', req.user.email);
 
-        const result = await processExtraHours(customStartTime, customEndTime);
+        const result = await processAttendance(customStartTime, customEndTime);
 
         return res.json(result);
     } catch (error) {
@@ -157,7 +140,7 @@ router.post('/automation/process-date-range', requireAuth, async (req, res) => {
 
         console.log(`[API] Processing date range: ${startDate} to ${endDate}`);
 
-        const result = await processExtraHours(start, end);
+        const result = await processAttendance(start, end);
 
         return res.json(result);
     } catch (error) {

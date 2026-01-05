@@ -72,6 +72,9 @@ const getAllUsers = async (filters) => {
       active: user?.active,
       memberOfHW: user?.memberOfHW,
       bioMetricId: user?.bioMetricId,
+      officeStartTime: user?.officeStartTime,
+      officeEndTime: user?.officeEndTime,
+      payoutMultiplier: user?.payoutMultiplier,
       updatedAt: user.updatedAt
     }));
   } catch (error) {
@@ -294,6 +297,7 @@ const updateUser = async (userId, updates) => {
 const updateUserByAdmin = async (userId, updates) => {
   try {
     const user = await User.findById(userId);
+    console.log("Admin updates" , updates)
     if (!user || user.isDeleted) {
       throw new Error('User not found');
     }
@@ -343,6 +347,31 @@ const updateUserByAdmin = async (userId, updates) => {
       }
       const hashed = await bcrypt.hash(password, 10);
       user.password = hashed;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'officeStartTime')) {
+      const officeStartTime = updates.officeStartTime;
+      if (officeStartTime && !/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(officeStartTime)) {
+        throw new Error('Invalid office start time format (HH:MM)');
+      }
+      user.officeStartTime = officeStartTime || null;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'officeEndTime')) {
+      const officeEndTime = updates.officeEndTime;
+      if (officeEndTime && !/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.test(officeEndTime)) {
+        throw new Error('Invalid office end time format (HH:MM)');
+      }
+      user.officeEndTime = officeEndTime || null;
+    }
+
+    if (Object.prototype.hasOwnProperty.call(updates, 'payoutMultiplier')) {
+      const payoutMultiplier = parseFloat(updates.payoutMultiplier);
+      if (!isNaN(payoutMultiplier) && payoutMultiplier >= 0 && payoutMultiplier <= 10) {
+        user.payoutMultiplier = payoutMultiplier;
+      } else {
+        throw new Error('Payout Multiplier must be a number between 0 and 10');
+      }
     }
 
     await user.save();
