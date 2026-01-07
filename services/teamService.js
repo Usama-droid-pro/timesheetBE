@@ -32,7 +32,11 @@ const getTeamsForUser = async (user) => {
   }
 
   // --- TEAM LEAD: return full data for teams they lead ---
-  const leadTeams = await Team.find({ leadId: userId }).populate("members");
+  const leadTeams = await Team.find({ leadId: userId }).populate({
+    path: "members",
+    select: "name id role"
+  }); 
+  
   if (leadTeams.length > 0) {
     return leadTeams;
   }
