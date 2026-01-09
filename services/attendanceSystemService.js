@@ -4,12 +4,12 @@ const Team = require("../models/Team")
 const moment = require('moment');
 const { incrementBufferCounter, decrementBufferCounter, getCurrentMonthCounter } = require('./bufferCounterService');
 const { getActiveSettings } = require('./systemSettingsService');
-const {createNaiveMoment} = require('./attendance-automation');
+const { createNaiveMoment } = require('./attendance-automation');
 const { getTeamByIdForUser } = require('./teamService');
 const { createSettingsSnapshot } = require('./systemSettingsService');
 
 async function markManualAttendanceService(userId, date, checkInTime, checkOutTime, attendanceId = null, options = {}) {
-  try {   
+  try {
     const applyRules = options.applyRules !== false; // default true
     const isWorkedFromHome = options.isWorkedFromHome === true; // default false
     let record;
@@ -38,7 +38,7 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
 
     const team = await Team.findOne({ members: user._id });
     if (!team) {
-       throw new Error(`Team not found for user: ${user.name}`);
+      throw new Error(`Team not found for user: ${user.name}`);
     }
 
     const settings = await getActiveSettings();
@@ -64,84 +64,90 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
     const safeZoneEnd = start.clone().add(settings.safeZoneMinutes, 'minutes');
     const bufferAbused = bufferCounter.bufferAbusedReached;
     const effectiveBufferEnd = bufferAbused
-        ? start.clone().add(settings.reducedBufferMinutes, 'minutes')
-        : start.clone().add(settings.bufferTimeMinutes, 'minutes');
+      ? start.clone().add(settings.reducedBufferMinutes, 'minutes')
+      : start.clone().add(settings.bufferTimeMinutes, 'minutes');
 
     let deductionMinutes = 0;
     let extraHoursMinutes = 0;
     let totalWorkMinutes = 0;
     const ruleApplied = {
-        isLate: false,
-        hasDeduction: false,
-        hasExtraHours: false,
-        isBufferUsed: false,
-        isBufferAbused: bufferAbused,
-        isSafeZone: false,
-        isEarlyCheckout: false,
-        isWorkedFromHome: isWorkedFromHome,
-        noCalculationRulesApplied: !applyRules
+      isLate: false,
+      hasDeduction: false,
+      hasExtraHours: false,
+      isBufferUsed: false,
+      isBufferAbused: bufferAbused,
+      isSafeZone: false,
+      isEarlyCheckout: false,
+      isWorkedFromHome: isWorkedFromHome,
+      noCalculationRulesApplied: !applyRules
     };
     let incrementBuffer = false;
 
     // Only apply calculation rules if applyRules is true
     if (applyRules) {
-    if (checkIn.isAfter(effectiveBufferEnd)) {
+      if (checkIn.isAfter(effectiveBufferEnd)) {
         ruleApplied.isLate = true;
         ruleApplied.hasDeduction = true;
         deductionMinutes = checkIn.diff(start, 'minutes');
-    } else if (checkIn.isAfter(safeZoneEnd)) {
+      } else if (checkIn.isAfter(safeZoneEnd)) {
         ruleApplied.isBufferUsed = true;
-    } else {
-      ruleApplied.isSafeZone = true;
-    }
+      } else {
+        ruleApplied.isSafeZone = true;
+      }
 
-    if (checkOut.isBefore(end)) {
+      if (checkOut.isBefore(end)) {
         ruleApplied.isEarlyCheckout = true;
         const earlyMinutes = end.diff(checkOut, 'minutes');
         deductionMinutes += earlyMinutes;
         ruleApplied.hasDeduction = true;
 
         if (ruleApplied.isBufferUsed) {
-            const lateArrivalMinutes = checkIn.diff(start, 'minutes');
-            deductionMinutes += lateArrivalMinutes;
+          const lateArrivalMinutes = checkIn.diff(start, 'minutes');
+          deductionMinutes += lateArrivalMinutes;
         }
-    }
+      }
 
-    // === RULE 3: Calculate extra hours ===
-    const totalWorkMinutes = checkOut.diff(checkIn, 'minutes');
-    const requiredMinutes = end.diff(start, 'minutes');
+      // === RULE 3: Calculate extra hours ===
+      totalWorkMinutes = checkOut.diff(checkIn, 'minutes');
+      const requiredMinutes = end.diff(start, 'minutes');
 
-    if (ruleApplied.isLate) {
+      console.log("Checking")
+      console.log(totalWorkMinutes, requiredMinutes)
+
+
+      if (ruleApplied.isLate) {
         if (checkOut.isAfter(end)) {
-            extraHoursMinutes = checkOut.diff(end, 'minutes');
-            ruleApplied.hasExtraHours = true;
+          extraHoursMinutes = checkOut.diff(end, 'minutes');
+          ruleApplied.hasExtraHours = true;
         }
-    } else if (ruleApplied.isBufferUsed) {
+      } else if (ruleApplied.isBufferUsed) {
         if (totalWorkMinutes > requiredMinutes) {
-            extraHoursMinutes = totalWorkMinutes - requiredMinutes;
-            ruleApplied.hasExtraHours = true;
+          extraHoursMinutes = totalWorkMinutes - requiredMinutes;
+          ruleApplied.hasExtraHours = true;
         } else {
-             if(ruleApplied.isEarlyCheckout){
-                incrementBuffer = false;
-            } else {
-                incrementBuffer = true;
-            }
+          if (ruleApplied.isEarlyCheckout) {
+            incrementBuffer = false;
+          } else {
+            incrementBuffer = true;
+          }
         }
-    } else {
+      } else {
         if (checkOut.isAfter(end)) {
-            extraHoursMinutes = checkOut.diff(end, 'minutes');
-            ruleApplied.hasExtraHours = true;
+          extraHoursMinutes = checkOut.diff(end, 'minutes');
+          ruleApplied.hasExtraHours = true;
         }
-    }
+      }
 
     } else {
-        // No rules applied: all work time is extra hours
-        totalWorkMinutes = checkOut.diff(checkIn, 'minutes');
-        extraHoursMinutes = totalWorkMinutes;
-        if (extraHoursMinutes > 0) {
-            ruleApplied.hasExtraHours = true;
-        }
+      // No rules applied: all work time is extra hours
+      totalWorkMinutes = checkOut.diff(checkIn, 'minutes');
+      extraHoursMinutes = totalWorkMinutes;
+      if (extraHoursMinutes > 0) {
+        ruleApplied.hasExtraHours = true;
+      }
     }
+
+    console.log("Total work minutes" , totalWorkMinutes)
 
     // === RULE 5: Snapshot ===
     const snapshot = createSettingsSnapshot(settings);
@@ -162,24 +168,24 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
       record.calculatedAt = new Date();
     } else {
       record = new AttendanceSystem({
-          userId,
-          teamId: team._id,
-          date: moment(workDate).toDate(),
-          checkInTime: checkIn.format('HH:mm'),
-          checkOutTime: checkOut.format('HH:mm'),
-          officeStartTime: officeStart,
-          officeEndTime: officeEnd,
-          totalWorkMinutes,
-          deductionMinutes,
-          extraHoursMinutes,
-          ruleApplied,
-          bufferCountAtCalculation: bufferCounter.bufferUseCount,
-          bufferIncrementedThisDay: incrementBuffer,
-          systemSettingsSnapshot: snapshot,
-          payoutMultiplier: user.payoutMultiplier,
-          approvalStatus: 'Pending',
-          calculatedAt: new Date(),
-          isManualEntry: true
+        userId,
+        teamId: team._id,
+        date: moment(workDate).toDate(),
+        checkInTime: checkIn.format('HH:mm'),
+        checkOutTime: checkOut.format('HH:mm'),
+        officeStartTime: officeStart,
+        officeEndTime: officeEnd,
+        totalWorkMinutes,
+        deductionMinutes,
+        extraHoursMinutes,
+        ruleApplied,
+        bufferCountAtCalculation: bufferCounter.bufferUseCount,
+        bufferIncrementedThisDay: incrementBuffer,
+        systemSettingsSnapshot: snapshot,
+        payoutMultiplier: user.payoutMultiplier,
+        approvalStatus: 'Pending',
+        calculatedAt: new Date(),
+        isManualEntry: true
       });
     }
 
@@ -189,7 +195,7 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
       if (attendanceId) {
         if (incrementBuffer && !previouslyIncremented) {
           const counter = await incrementBufferCounter(user._id, workDate);
-          
+
           if (counter.bufferAbusedReached) {
             await applyRetroactiveBufferDeductions(user._id, workDate);
           }
@@ -197,9 +203,9 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
           // Pass workDate to get correct month's counter
           const counterBefore = await getCurrentMonthCounter(user._id, workDate);
           const wasAbused = counterBefore.bufferAbusedReached;
-          
+
           const counter = await decrementBufferCounter(user._id, workDate);
-          
+
           if (wasAbused && !counter.bufferAbusedReached) {
             await undoRetroactiveBufferDeductions(user._id, workDate);
           }
@@ -232,7 +238,7 @@ async function getAttendanceRecords(filters = {}) {
     if (filters.userId) query.userId = filters.userId;
     if (filters.teamId) query.teamId = filters.teamId;
     if (filters.approvalStatus) query.approvalStatus = filters.approvalStatus;
-    
+
     if (filters.startDate || filters.endDate) {
       query.date = {};
       if (filters.startDate) query.date.$gte = new Date(filters.startDate);
@@ -257,7 +263,7 @@ async function getAttendanceRecords(filters = {}) {
 async function getAttendanceByUser(userId, startDate, endDate) {
   try {
     const query = { userId };
-    
+
     if (startDate || endDate) {
       query.date = {};
       if (startDate) query.date.$gte = new Date(startDate);
@@ -279,7 +285,7 @@ async function getAttendanceByDate(date) {
   try {
     const startOfDay = new Date(date);
     startOfDay.setHours(0, 0, 0, 0);
-    
+
     const endOfDay = new Date(date);
     endOfDay.setHours(23, 59, 59, 999);
 
@@ -302,7 +308,7 @@ async function getAttendanceByDate(date) {
 async function updateApprovalStatus(id, status, note = null) {
   try {
     const record = await AttendanceSystem.findById(id);
-    
+
     if (!record) {
       throw new Error('Attendance record not found');
     }
@@ -322,27 +328,27 @@ async function updateApprovalStatus(id, status, note = null) {
       if (counter.bufferAbusedReached) {
         await applyRetroactiveBufferDeductions(record.userId, record.date);
       }
-    } 
+    }
     // Buffer logic on status reversion (Rejected -> anything else)
     else if (status !== 'Rejected' && record.ruleApplied.isBufferUsed && record.bufferIncrementedThisDay) {
-        // Find if user was in abuse mode before decrementing
-        console.log("inside")
-        // Pass record.date to get correct month's counter
-        const counterBefore = await getCurrentMonthCounter(record.userId, record.date);
-        const wasAbused = counterBefore.bufferAbusedReached;
-        
-        const counter = await decrementBufferCounter(record.userId, record.date);
-        record.bufferIncrementedThisDay = false;
-        record.bufferCountAtCalculation = counter.bufferUseCount;
-        await record.save()
+      // Find if user was in abuse mode before decrementing
+      console.log("inside")
+      // Pass record.date to get correct month's counter
+      const counterBefore = await getCurrentMonthCounter(record.userId, record.date);
+      const wasAbused = counterBefore.bufferAbusedReached;
 
-        // If they WERE in abuse mode but now ARE NOT
-        if (wasAbused && !counter.bufferAbusedReached) {
-            await undoRetroactiveBufferDeductions(record.userId, record.date);
-        }
+      const counter = await decrementBufferCounter(record.userId, record.date);
+      record.bufferIncrementedThisDay = false;
+      record.bufferCountAtCalculation = counter.bufferUseCount;
+      await record.save()
+
+      // If they WERE in abuse mode but now ARE NOT
+      if (wasAbused && !counter.bufferAbusedReached) {
+        await undoRetroactiveBufferDeductions(record.userId, record.date);
+      }
     }
 
-        await record.save();
+    await record.save();
 
     return record;
   } catch (error) {
@@ -370,14 +376,14 @@ async function applyRetroactiveBufferDeductions(userId, referenceDate) {
     });
 
     const createNaiveMoment = (timeStr) => {
-        return moment(timeStr, 'YYYY-MM-DD HH:mm:ss');
+      return moment(timeStr, 'YYYY-MM-DD HH:mm:ss');
     };
 
     for (const record of pendingRecords) {
       const workDate = moment(record.date).format('YYYY-MM-DD');
       const start = createNaiveMoment(`${workDate} ${record.officeStartTime}:00`);
       const checkIn = createNaiveMoment(`${workDate} ${record.checkInTime}:00`);
-      
+
       const safeZoneEnd = start.clone().add(settings.safeZoneMinutes, 'minutes');
       const reducedBufferEnd = start.clone().add(settings.reducedBufferMinutes, 'minutes');
 
@@ -387,10 +393,10 @@ async function applyRetroactiveBufferDeductions(userId, referenceDate) {
         record.ruleApplied.hasDeduction = true;
         record.ruleApplied.isBufferUsed = true;
         record.ruleApplied.isBufferAbused = true;
-        
+
         // Calculate total deduction (Late arrival + any existing early checkout)
         let deductionMinutes = checkIn.diff(start, 'minutes');
-        
+
         if (record.ruleApplied.isEarlyCheckout) {
           const end = createNaiveMoment(`${workDate} ${record.officeEndTime}:00`);
           const checkOut = createNaiveMoment(`${workDate} ${record.checkOutTime}:00`);
@@ -399,17 +405,17 @@ async function applyRetroactiveBufferDeductions(userId, referenceDate) {
         }
 
         record.deductionMinutes = deductionMinutes;
-        
+
         // Extra hours in late scenario count after office end time
         if (record.extraHoursMinutes > 0) {
-            const end = createNaiveMoment(`${workDate} ${record.officeEndTime}:00`);
-            const checkOut = createNaiveMoment(`${workDate} ${record.checkOutTime}:00`);
-            if (checkOut.isAfter(end)) {
-                record.extraHoursMinutes = checkOut.diff(end, 'minutes');
-            } else {
-                record.extraHoursMinutes = 0;
-                record.ruleApplied.hasExtraHours = false;
-            }
+          const end = createNaiveMoment(`${workDate} ${record.officeEndTime}:00`);
+          const checkOut = createNaiveMoment(`${workDate} ${record.checkOutTime}:00`);
+          if (checkOut.isAfter(end)) {
+            record.extraHoursMinutes = checkOut.diff(end, 'minutes');
+          } else {
+            record.extraHoursMinutes = 0;
+            record.ruleApplied.hasExtraHours = false;
+          }
         }
 
         await record.save();
@@ -438,7 +444,7 @@ async function undoRetroactiveBufferDeductions(userId, referenceDate) {
     });
 
     const createNaiveMoment = (timeStr) => {
-        return moment(timeStr, 'YYYY-MM-DD HH:mm:ss');
+      return moment(timeStr, 'YYYY-MM-DD HH:mm:ss');
     };
 
     for (const record of affectedRecords) {
@@ -452,36 +458,36 @@ async function undoRetroactiveBufferDeductions(userId, referenceDate) {
 
       // Check if it should be forgiven now (it should be within the full buffer)
       if (checkIn.isSameOrBefore(bufferEnd)) {
-          record.ruleApplied.isLate = false;
-          record.ruleApplied.hasDeduction = false;
-          record.ruleApplied.isBufferUsed = true;
-          record.ruleApplied.isBufferAbused = false;
-          record.deductionMinutes = 0;
+        record.ruleApplied.isLate = false;
+        record.ruleApplied.hasDeduction = false;
+        record.ruleApplied.isBufferUsed = true;
+        record.ruleApplied.isBufferAbused = false;
+        record.deductionMinutes = 0;
 
-          // Recalculate based on early checkout if applicable
-          if (record.ruleApplied.isEarlyCheckout) {
-              const earlyMinutes = end.diff(checkOut, 'minutes');
-              record.deductionMinutes = earlyMinutes;
-              record.ruleApplied.hasDeduction = true;
-          }
+        // Recalculate based on early checkout if applicable
+        if (record.ruleApplied.isEarlyCheckout) {
+          const earlyMinutes = end.diff(checkOut, 'minutes');
+          record.deductionMinutes = earlyMinutes;
+          record.ruleApplied.hasDeduction = true;
+        }
 
-          // Recalculate extra hours (they are now counted after office end or 9 hours)
-          if (record.ruleApplied.isEarlyCheckout) {
-              record.extraHoursMinutes = 0;
-              record.ruleApplied.hasExtraHours = false;
-          } else {
-              const workMins = record.totalWorkMinutes;
-              const requiredMins = end.diff(start, 'minutes');
-              if (workMins > requiredMins) {
-                  record.extraHoursMinutes = workMins - requiredMins;
-                  record.ruleApplied.hasExtraHours = true;
-              }
+        // Recalculate extra hours (they are now counted after office end or 9 hours)
+        if (record.ruleApplied.isEarlyCheckout) {
+          record.extraHoursMinutes = 0;
+          record.ruleApplied.hasExtraHours = false;
+        } else {
+          const workMins = record.totalWorkMinutes;
+          const requiredMins = end.diff(start, 'minutes');
+          if (workMins > requiredMins) {
+            record.extraHoursMinutes = workMins - requiredMins;
+            record.ruleApplied.hasExtraHours = true;
           }
+        }
       } else {
-          // Still late even with full buffer, just unset the abuse flag
-          record.ruleApplied.isBufferAbused = false;
+        // Still late even with full buffer, just unset the abuse flag
+        record.ruleApplied.isBufferAbused = false;
       }
-      
+
       await record.save();
     }
   } catch (error) {
@@ -519,11 +525,11 @@ async function getMonthlyStats(userId, month, year) {
       stats.totalExtraHoursMinutes += record.extraHoursMinutes;
       stats.totalDeductionMinutes += record.deductionMinutes;
       stats.totalWorkMinutes += record.totalWorkMinutes;
-      
+
       if (record.ruleApplied.isLate) stats.lateDays++;
       if (record.ruleApplied.isEarlyCheckout) stats.earlyCheckouts++;
       if (record.ruleApplied.isBufferUsed) stats.bufferUsedDays++;
-      
+
       if (record.approvalStatus === 'Approved') stats.approvedRecords++;
       else if (record.approvalStatus === 'Pending') stats.pendingRecords++;
       else if (record.approvalStatus === 'Rejected') stats.rejectedRecords++;
@@ -549,7 +555,7 @@ async function getAttendanceById(id) {
     const record = await AttendanceSystem.findById(id)
       .populate('userId', 'name email role')
       .populate('teamId', 'name');
-    
+
     if (!record) {
       throw new Error('Attendance record not found');
     }
@@ -620,9 +626,9 @@ async function addSecondEntryService(userId, date, checkInTime, checkOutTime) {
       userId,
       date: workDate
     });
-    
+
     // Entry number: if 1 exists = 2nd entry, if 2 exist = 3rd entry
-    const baseEntryNo =  existingEntries ? existingEntries + 1 : 2;
+    const baseEntryNo = existingEntries ? existingEntries + 1 : 2;
 
     // 5. Create snapshot
     const snapshot = createSettingsSnapshot(settings);
@@ -779,7 +785,7 @@ async function addSecondEntryService(userId, date, checkInTime, checkOutTime) {
 async function deleteAttendanceEntry(id) {
   try {
     const record = await AttendanceSystem.findById(id);
-    
+
     if (!record) {
       throw new Error('Attendance record not found');
     }
@@ -797,9 +803,9 @@ async function deleteAttendanceEntry(id) {
       // Pass date to get correct month's counter
       const counterBefore = await getCurrentMonthCounter(userId, date);
       const wasAbused = counterBefore.bufferAbusedReached;
-      
+
       const counter = await decrementBufferCounter(userId, date);
-      
+
       // If they WERE in abuse mode but now ARE NOT, undo retroactive deductions
       if (wasAbused && !counter.bufferAbusedReached) {
         await undoRetroactiveBufferDeductions(userId, date);
@@ -820,16 +826,16 @@ async function deleteAttendanceEntry(id) {
 async function adjustAttendanceHours(id, adjustmentData, adminUserId) {
   try {
     const record = await AttendanceSystem.findById(id);
-    
+
     if (!record) {
       throw new Error('Attendance record not found');
     }
 
-    const { 
-      newDeductionMinutes, 
-      newExtraHoursMinutes, 
-      reason, 
-      isHalfDay 
+    const {
+      newDeductionMinutes,
+      newExtraHoursMinutes,
+      reason,
+      isHalfDay
     } = adjustmentData;
 
     // Create history entry with current values before modification
@@ -854,7 +860,7 @@ async function adjustAttendanceHours(id, adjustmentData, adminUserId) {
       record.deductionMinutes = newDeductionMinutes;
       record.ruleApplied.hasDeduction = newDeductionMinutes > 0;
     }
-    
+
     if (newExtraHoursMinutes !== undefined && newExtraHoursMinutes !== null) {
       record.extraHoursMinutes = newExtraHoursMinutes;
       record.ruleApplied.hasExtraHours = newExtraHoursMinutes > 0;
@@ -882,14 +888,14 @@ async function markDayAsLeaveOrAbsent(userId, date, type, adminUserId) {
     let record = await AttendanceSystem.findOne({ userId, date });
     const user = await User.findOne({ _id: userId });
     //find user team
-      const team = await Team.findOne({ members: user._id });
-         
+    const team = await Team.findOne({ members: user._id });
+
 
     if (record) {
       // Update existing record
       record.isAbsent = type === 'absent';
       record.isPaidLeave = type === 'leave';
-      
+
       // Clear attendance data
       record.checkInTime = null;
       record.checkOutTime = null;
@@ -897,7 +903,7 @@ async function markDayAsLeaveOrAbsent(userId, date, type, adminUserId) {
       record.deductionMinutes = 0;
       record.extraHoursMinutes = 0;
       record.bufferIncrementedThisDay = false;
-      
+
       // Reset rules
       record.ruleApplied = {
         noCalculationRulesApplied: true
@@ -919,14 +925,14 @@ async function markDayAsLeaveOrAbsent(userId, date, type, adminUserId) {
     // Create minimal record with no calculations
     record = new AttendanceSystem({
       userId,
-      teamId: team._id, 
+      teamId: team._id,
       date,
       isAbsent: type === 'absent',
       isPaidLeave: type === 'leave',
       // Ensure null/0 for others
       checkInTime: null,
       checkOutTime: null,
-      officeStartTime: user?.officeStartTime ,
+      officeStartTime: user?.officeStartTime,
       officeEndTime: user?.officeEndTime,
       totalWorkMinutes: 0,
       deductionMinutes: 0,
