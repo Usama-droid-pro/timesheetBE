@@ -3,6 +3,8 @@ const {
   getAttendanceByUser,
   getAttendanceByDate,
   updateApprovalStatus,
+  bulkUpdateStatus,
+  getGrandAttendanceReport,
   getMonthlyStats,
   getAttendanceById,
   toggleIgnoreDeduction,
@@ -288,12 +290,98 @@ async function markLeaveOrAbsent(req, res) {
   }
 }
 
+/**
+ * @route   PATCH /api/attendance-system/bulk-approval
+ * @desc    Bulk update approval status for multiple records
+ * @access  Private/Admin
+ */
+async function bulkUpdateApproval(req, res) {
+  try {
+    const { recordIds, status, note } = req.body;
+
+    // Validation
+    if (!Array.isArray(recordIds) || recordIds.length === 0) {
+      return res.status(400).json({ success: false, message: 'recordIds must be a non-empty array' });
+    }
+
+    if (!['Pending', 'NA', 'Approved', 'SinglePay', 'Rejected'].includes(status)) {
+      return res.status(400).json({ success: false, message: 'Invalid approval status' });
+    }
+
+    // Call service
+    const result = await bulkUpdateStatus(recordIds, status, note);
+
+    res.json({ 
+      success: true, 
+      message: result.message,
+      data: result
+    });
+  } catch (error) {
+    console.error('Error in bulk update:', error);
+    
+    // Check for month validation error
+    if (error.message.includes('multiple months')) {
+      return res.status(400).json({ 
+        success: false, 
+        message: error.message 
+      });
+    }
+
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to bulk update approval status', 
+      error: error.message 
+    });
+  }
+}
+
+/**
+ * @route   GET /api/attendance-system/grand-report
+ * @desc    Get grand attendance report for all employees
+ * @access  Private/Admin
+ */
+async function getGrandReport(req, res) {
+  try {
+    const { month, year, teamId } = req.query;
+
+    // Validation
+    if (!month || !year) {
+      return res.status(400).json({ success: false, message: 'Month and year are required' });
+    }
+
+    const monthNum = parseInt(month);
+    const yearNum = parseInt(year);
+
+    if (monthNum < 1 || monthNum > 12) {
+      return res.status(400).json({ success: false, message: 'Invalid month (1-12)' });
+    }
+
+    if (yearNum < 2000 || yearNum > 2100) {
+      return res.status(400).json({ success: false, message: 'Invalid year' });
+    }
+
+    // Call service
+    const report = await getGrandAttendanceReport(monthNum, yearNum, teamId);
+
+    res.json(report);
+  } catch (error) {
+    console.error('Error generating grand report:', error);
+    res.status(500).json({ 
+      success: false, 
+      message: 'Failed to generate report', 
+      error: error.message 
+    });
+  }
+}
+
 module.exports = {
   getRecords,
   getUserRecords,
   getByDate,
   getById,
   updateApproval,
+  bulkUpdateApproval,
+  getGrandReport,
   getStats,
   updateIgnoreDeduction,
   markManualAttendance,

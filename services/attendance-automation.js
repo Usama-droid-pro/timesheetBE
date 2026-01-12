@@ -98,6 +98,17 @@ function createNaiveMoment(dateStr, format = 'YYYY-MM-DD HH:mm:ss') {
     return moment(dateStr, format);
 }
 
+/**
+ * Check if a date is a weekend (Saturday or Sunday)
+ * @param {string} dateStr - Date string in YYYY-MM-DD format
+ * @returns {boolean} - True if weekend, false otherwise
+ */
+function isWeekend(dateStr) {
+    const date = new Date(dateStr);
+    const day = date.getDay();
+    return day === 0 || day === 6; // 0 = Sunday, 6 = Saturday
+}
+
 async function fetchBiometricEvents(startTime, endTime, searchResultPosition = 0) {
     try {
         const requestBody = {
@@ -241,6 +252,13 @@ async function calculateAttendanceRecords(group) {
         // Get buffer counter for the work date's month (not current month)
         const bufferCounter = await getCurrentMonthCounter(user._id, workDate);
 
+        // **CHECK IF THIS IS A WEEKEND**
+        const isWeekendWork = isWeekend(workDate);
+        
+        if (isWeekendWork) {
+            console.log(`[WEEKEND] Detected weekend work on ${workDate} for ${user.name}. Bypassing all rules, applying 2x multiplier.`);
+        }
+
         // Parse office hours for this work date
         const start = createNaiveMoment(`${workDate} ${officeStart}:00`);
         const end = createNaiveMoment(`${workDate} ${officeEnd}:00`);
@@ -255,6 +273,7 @@ async function calculateAttendanceRecords(group) {
         //  Initialize calculation variables
         let deductionMinutes = 0;
         let extraHoursMinutes = 0;
+        let totalWorkMinutes = 0;
         const ruleApplied = {
             isLate: false,
             hasDeduction: false,
@@ -266,68 +285,81 @@ async function calculateAttendanceRecords(group) {
         };
         let incrementBuffer = false;
 
-        // === RULE 1: Determine lateness and deduction ===
-        if (checkIn.isAfter(effectiveBufferEnd)) {
-            // LATE ARRIVAL (after buffer time)
-            ruleApplied.isLate = true;
-            ruleApplied.hasDeduction = true;
-            deductionMinutes = checkIn.diff(start, 'minutes');
-        } else if (checkIn.isAfter(safeZoneEnd)) {
-            // BUFFER ZONE USAGE (between safe zone and buffer end)
-            ruleApplied.isBufferUsed = true;
+        // === WEEKEND LOGIC: Bypass all rules ===
+        if (isWeekendWork) {
+            // For weekends: No rules, all time is extra hours
+            totalWorkMinutes = checkOut.diff(checkIn, 'minutes');
+            extraHoursMinutes = totalWorkMinutes;
+            deductionMinutes = 0;
+            incrementBuffer = false;
+            ruleApplied.hasExtraHours = extraHoursMinutes > 0;
+            // No late, no buffer, no deductions on weekends
         } else {
-            // SAFE ZONE (within safe zone time)
-            ruleApplied.isSafeZone = true;
-        }
-
-        // === RULE 2: Check early checkout ===
-        if (checkOut.isBefore(end)) {
-            ruleApplied.isEarlyCheckout = true;
-            const earlyMinutes = end.diff(checkOut, 'minutes');
-            deductionMinutes += earlyMinutes;
-            ruleApplied.hasDeduction = true;
-
-            // NEW RULE: If Buffer Used + Early Checkout, add the late arrival time to deduction
-            if (ruleApplied.isBufferUsed) {
-                const lateArrivalMinutes = checkIn.diff(start, 'minutes');
-                deductionMinutes += lateArrivalMinutes;
+            // === WEEKDAY RULES (Original Logic) ===
+            
+            // === RULE 1: Determine lateness and deduction ===
+            if (checkIn.isAfter(effectiveBufferEnd)) {
+                // LATE ARRIVAL (after buffer time)
+                ruleApplied.isLate = true;
+                ruleApplied.hasDeduction = true;
+                deductionMinutes = checkIn.diff(start, 'minutes');
+            } else if (checkIn.isAfter(safeZoneEnd)) {
+                // BUFFER ZONE USAGE (between safe zone and buffer end)
+                ruleApplied.isBufferUsed = true;
+            } else {
+                // SAFE ZONE (within safe zone time)
+                ruleApplied.isSafeZone = true;
             }
-        }
 
-        // === RULE 3: Calculate extra hours ===
-        const totalWorkMinutes = checkOut.diff(checkIn, 'minutes');
-        const requiredMinutes = end.diff(start, 'minutes');
-        
+            // === RULE 2: Check early checkout ===
+            if (checkOut.isBefore(end)) {
+                ruleApplied.isEarlyCheckout = true;
+                const earlyMinutes = end.diff(checkOut, 'minutes');
+                deductionMinutes += earlyMinutes;
+                ruleApplied.hasDeduction = true;
 
-        if (ruleApplied.isLate) {
-            // Late arrival: extra hours count after office end time only
-            if (checkOut.isAfter(end)) {
-                extraHoursMinutes = checkOut.diff(end, 'minutes');
-                ruleApplied.hasExtraHours = true;
-            }
-        } else if (ruleApplied.isBufferUsed) {
-
-            // Extra hours: Only if 9 hours completed
-            if (totalWorkMinutes > requiredMinutes) {
-                extraHoursMinutes = totalWorkMinutes - requiredMinutes;
-                ruleApplied.hasExtraHours = true;
-            }
-            else{
-                if(ruleApplied.isEarlyCheckout){
-                    //because we are already addind deduction of morning . thats why giving user a buffer advantage
-                    incrementBuffer = false;
-                }else{
-                    incrementBuffer = true;
+                // NEW RULE: If Buffer Used + Early Checkout, add the late arrival time to deduction
+                if (ruleApplied.isBufferUsed) {
+                    const lateArrivalMinutes = checkIn.diff(start, 'minutes');
+                    deductionMinutes += lateArrivalMinutes;
                 }
-                
             }
-        } else { 
-            // Safe zone: extra hours after office end time
-            if (checkOut.isAfter(end)) {
+
+            // === RULE 3: Calculate extra hours ===
+            totalWorkMinutes = checkOut.diff(checkIn, 'minutes');
+            const requiredMinutes = end.diff(start, 'minutes');
+            
+
+            if (ruleApplied.isLate) {
+                // Late arrival: extra hours count after office end time only
+                if (checkOut.isAfter(end)) {
+                    extraHoursMinutes = checkOut.diff(end, 'minutes');
+                    ruleApplied.hasExtraHours = true;
+                }
+            } else if (ruleApplied.isBufferUsed) {
+
+                // Extra hours: Only if 9 hours completed
+                if (totalWorkMinutes > requiredMinutes) {
+                    extraHoursMinutes = totalWorkMinutes - requiredMinutes;
+                    ruleApplied.hasExtraHours = true;
+                }
+                else{
+                    if(ruleApplied.isEarlyCheckout){
+                        //because we are already addind deduction of morning . thats why giving user a buffer advantage
+                        incrementBuffer = false;
+                    }else{
+                        incrementBuffer = true;
+                    }
+                    
+                }
+            } else { 
+                // Safe zone: extra hours after office end time
+                if (checkOut.isAfter(end)) {
                 extraHoursMinutes = checkOut.diff(end, 'minutes');
                 ruleApplied.hasExtraHours = true;
             }
         }
+        } // End of weekend vs weekday logic
 
         // === RULE 4: Update buffer counter if needed ===
         if (incrementBuffer) {
@@ -358,8 +390,9 @@ async function calculateAttendanceRecords(group) {
                 bufferCountAtCalculation: bufferCounter.bufferUseCount,
                 bufferIncrementedThisDay: incrementBuffer,
                 systemSettingsSnapshot: snapshot,
-                payoutMultiplier: user.payoutMultiplier,
-                calculatedAt: new Date()
+                payoutMultiplier: isWeekendWork ? 2 : user.payoutMultiplier,
+                calculatedAt: new Date(),
+                isWeekendWork: isWeekendWork
             });
         } else {
             // MIDNIGHT CHECKOUT: Split into two records

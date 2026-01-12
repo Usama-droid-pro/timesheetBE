@@ -54,7 +54,7 @@ exports.getReport = async (req, res) => {
 exports.triggerSync = async (req, res) => {
     try {
         const startDate = dayjs().subtract(5, 'days').toDate(); 
-        // const startDate = dayjs().startOf("month").toDate();
+        // const startDate = dayjs().subtract(1, 'month').startOf("month").toDate();
 
         const endDate = dayjs().toDate();
         const stats = await attendanceService.syncAttendancePunches(startDate, endDate);

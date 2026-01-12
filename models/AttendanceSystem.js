@@ -200,6 +200,10 @@ const attendanceSystemSchema = new mongoose.Schema({
     type: Date,
     required: true,
     default: Date.now
+  },
+  isWeekendWork : {
+    type : Boolean,
+    default : false
   }
 }, {
   timestamps: true

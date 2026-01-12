@@ -8,12 +8,33 @@ const { createNaiveMoment } = require('./attendance-automation');
 const { getTeamByIdForUser } = require('./teamService');
 const { createSettingsSnapshot } = require('./systemSettingsService');
 
+/**
+ * Check if a date is a weekend (Saturday or Sunday)
+ * @param {string} dateStr - Date string in YYYY-MM-DD format
+ * @returns {boolean} - True if weekend, false otherwise
+ */
+function isWeekend(dateStr) {
+  const date = new Date(dateStr);
+  const day = date.getDay();
+  return day === 0 || day === 6; // 0 = Sunday, 6 = Saturday
+}
+
 async function markManualAttendanceService(userId, date, checkInTime, checkOutTime, attendanceId = null, options = {}) {
   try {
-    const applyRules = options.applyRules !== false; // default true
-    const isWorkedFromHome = options.isWorkedFromHome === true; // default false
-    let record;
+    // Check if this is a weekend - weekends have special handling
     let workDate = date;
+    const isWeekendWork = workDate ? isWeekend(workDate) : false;
+    
+    // For weekends: force no rules, all time is double-paid extra hours
+    let applyRules = options.applyRules !== false; // default true
+    const isWorkedFromHome = options.isWorkedFromHome === true; // default false
+    
+    if (isWeekendWork) {
+      applyRules = false; // Never apply rules on weekends
+      console.log(`[WEEKEND] Detected weekend work for date: ${workDate}. Rules bypassed, 2x multiplier applied.`);
+    }
+    
+    let record;
     if (attendanceId) {
       record = await AttendanceSystem.findById(attendanceId);
       if (!record) {
@@ -167,6 +188,9 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
       record.systemSettingsSnapshot = snapshot;
       record.calculatedAt = new Date();
     } else {
+      // Determine payout multiplier: 2x for weekends, otherwise user's default
+      const finalMultiplier = isWeekendWork ? 2 : user.payoutMultiplier;
+      
       record = new AttendanceSystem({
         userId,
         teamId: team._id,
@@ -182,10 +206,11 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
         bufferCountAtCalculation: bufferCounter.bufferUseCount,
         bufferIncrementedThisDay: incrementBuffer,
         systemSettingsSnapshot: snapshot,
-        payoutMultiplier: user.payoutMultiplier,
+        payoutMultiplier: finalMultiplier,
         approvalStatus: 'Pending',
         calculatedAt: new Date(),
-        isManualEntry: true
+        isManualEntry: true,
+        isWeekendWork: isWeekendWork
       });
     }
 
@@ -317,35 +342,41 @@ async function updateApprovalStatus(id, status, note = null) {
     record.approvalStatus = status;
     if (note) record.note = note;
 
-    // Buffer logic on rejection
-    if (status === 'Rejected' && record.ruleApplied.isBufferUsed && !record.bufferIncrementedThisDay) {
-      const counter = await incrementBufferCounter(record.userId, record.date);
-      record.bufferIncrementedThisDay = true;
-      record.bufferCountAtCalculation = counter.bufferUseCount;
-      await record.save()
+    // Skip buffer logic entirely for weekend work
+    // Weekends don't use buffer rules, so approval/rejection shouldn't affect buffer counter
+    if (!record.isWeekendWork) {
+      // Buffer logic on rejection
+      if (status === 'Rejected' && record.ruleApplied.isBufferUsed && !record.bufferIncrementedThisDay) {
+        const counter = await incrementBufferCounter(record.userId, record.date);
+        record.bufferIncrementedThisDay = true;
+        record.bufferCountAtCalculation = counter.bufferUseCount;
+        await record.save()
 
-      // If buffer limit reached, apply retroactive deductions for the current month
-      if (counter.bufferAbusedReached) {
-        await applyRetroactiveBufferDeductions(record.userId, record.date);
+        // If buffer limit reached, apply retroactive deductions for the current month
+        if (counter.bufferAbusedReached) {
+          await applyRetroactiveBufferDeductions(record.userId, record.date);
+        }
       }
-    }
-    // Buffer logic on status reversion (Rejected -> anything else)
-    else if (status !== 'Rejected' && record.ruleApplied.isBufferUsed && record.bufferIncrementedThisDay) {
-      // Find if user was in abuse mode before decrementing
-      console.log("inside")
-      // Pass record.date to get correct month's counter
-      const counterBefore = await getCurrentMonthCounter(record.userId, record.date);
-      const wasAbused = counterBefore.bufferAbusedReached;
+      // Buffer logic on status reversion (Rejected -> anything else)
+      else if (status !== 'Rejected' && record.ruleApplied.isBufferUsed && record.bufferIncrementedThisDay) {
+        // Find if user was in abuse mode before decrementing
+        console.log("inside")
+        // Pass record.date to get correct month's counter
+        const counterBefore = await getCurrentMonthCounter(record.userId, record.date);
+        const wasAbused = counterBefore.bufferAbusedReached;
 
-      const counter = await decrementBufferCounter(record.userId, record.date);
-      record.bufferIncrementedThisDay = false;
-      record.bufferCountAtCalculation = counter.bufferUseCount;
-      await record.save()
+        const counter = await decrementBufferCounter(record.userId, record.date);
+        record.bufferIncrementedThisDay = false;
+        record.bufferCountAtCalculation = counter.bufferUseCount;
+        await record.save()
 
-      // If they WERE in abuse mode but now ARE NOT
-      if (wasAbused && !counter.bufferAbusedReached) {
-        await undoRetroactiveBufferDeductions(record.userId, record.date);
+        // If they WERE in abuse mode but now ARE NOT
+        if (wasAbused && !counter.bufferAbusedReached) {
+          await undoRetroactiveBufferDeductions(record.userId, record.date);
+        }
       }
+    } else {
+      console.log(`[WEEKEND] Skipping buffer logic for weekend work on ${record.date}`);
     }
 
     await record.save();
@@ -963,11 +994,302 @@ async function markDayAsLeaveOrAbsent(userId, date, type, adminUserId) {
   }
 }
 
+/**
+ * Bulk update approval status for multiple records
+ * CRITICAL: Only processes records from the same month (buffer counters are per-month)
+ */
+async function bulkUpdateStatus(recordIds, status, note = null) {
+  try {
+    // 1. Fetch all records with user info, sorted by date (chronological processing is critical)
+    const records = await AttendanceSystem.find({ _id: { $in: recordIds } })
+      .populate('userId', 'name')
+      .sort({ date: 1 }); // Ascending order - MUST process oldest first
+
+    if (records.length === 0) {
+      throw new Error('No records found with the provided IDs');
+    }
+
+    // 1.5 VALIDATE: All records must be from the same month
+    const months = new Set(records.map(r => {
+      const date = new Date(r.date);
+      return `${date.getFullYear()}-${date.getMonth()}`;
+    }));
+
+    if (months.size > 1) {
+      throw new Error('Bulk update cannot span multiple months. Buffer counters are tracked per month.');
+    }
+
+    // 2. Group records by userId (each user has separate buffer counter)
+    const groupedByUser = {};
+    records.forEach(record => {
+      const userId = record.userId._id.toString();
+      if (!groupedByUser[userId]) {
+        groupedByUser[userId] = [];
+      }
+      groupedByUser[userId].push(record);
+    });
+
+    // 3. Process each user's records
+    const results = [];
+    let totalProcessed = 0;
+    let weekendSkipped = 0;
+
+    for (const [userId, userRecords] of Object.entries(groupedByUser)) {
+      // Already sorted by date from initial query
+      const userName = userRecords[0].userId.name;
+      
+      // Get the month's buffer counter (use first record's date as reference)
+      const referenceDate = userRecords[0].date;
+      const initialCounter = await getCurrentMonthCounter(userId, referenceDate);
+      let bufferChanges = 0;
+
+      // Track if we need to apply/undo retroactive deductions
+      let needsRetroactive = false;
+      let needsUndoRetroactive = false;
+      const wasAbusedInitially = initialCounter.bufferAbusedReached;
+
+      // Process each record chronologically
+      for (const record of userRecords) {
+        const previousStatus = record.approvalStatus;
+        record.approvalStatus = status;
+        if (note) record.note = note;
+
+        // Skip buffer logic for weekend work
+        if (record.isWeekendWork) {
+          weekendSkipped++;
+          await record.save();
+          totalProcessed++;
+          continue;
+        }
+
+        // Buffer logic (same as single update but tracking changes)
+        if (status === 'Rejected' && record.ruleApplied.isBufferUsed && !record.bufferIncrementedThisDay) {
+          const counter = await incrementBufferCounter(userId, record.date);
+          record.bufferIncrementedThisDay = true;
+          record.bufferCountAtCalculation = counter.bufferUseCount;
+          bufferChanges++;
+          
+          // Check if this push triggered buffer abuse
+          if (counter.bufferAbusedReached && !wasAbusedInitially) {
+            needsRetroactive = true;
+          }
+        }
+        else if (status !== 'Rejected' && record.ruleApplied.isBufferUsed && record.bufferIncrementedThisDay) {
+          // Get counter state before decrementing
+          const counterBefore = await getCurrentMonthCounter(userId, record.date);
+          const wasAbused = counterBefore.bufferAbusedReached;
+
+          const counter = await decrementBufferCounter(userId, record.date);
+          record.bufferIncrementedThisDay = false;
+          record.bufferCountAtCalculation = counter.bufferUseCount;
+          bufferChanges--;
+
+          // Check if decrement removed abuse status
+          if (wasAbused && !counter.bufferAbusedReached) {
+            needsUndoRetroactive = true;
+          }
+        }
+
+        await record.save();
+        totalProcessed++;
+      }
+
+      // Apply retroactive actions once at the end
+      if (needsRetroactive) {
+        await applyRetroactiveBufferDeductions(userId, referenceDate);
+      } else if (needsUndoRetroactive) {
+        await undoRetroactiveBufferDeductions(userId, referenceDate);
+      }
+
+      results.push({
+        userId,
+        userName,
+        recordsProcessed: userRecords.length,
+        bufferImpact: bufferChanges
+      });
+    }
+
+    return {
+      success: true,
+      totalProcessed,
+      weekendSkipped,
+      userBreakdown: results,
+      message: `Successfully updated ${totalProcessed} records`
+    };
+
+  } catch (error) {
+    console.error('Error in bulk update:', error);
+    throw error;
+  }
+}
+
+/**
+ * Get grand attendance report for all employees
+ * @param {number} month - Month (1-12)
+ * @param {number} year - Year
+ * @param {string} teamId - Optional team filter
+ */
+async function getGrandAttendanceReport(month, year, teamId = null) {
+  try {
+    // 1. Get all users (filtered by team if provided)
+    let dataFound = false;
+    let users;
+    if (teamId) {
+      const team = await Team.findById(teamId).populate('members');
+      users = team ? team.members : [];
+    } else {
+      users = await User.find({active : true , isDeleted : false , role : {$ne : 'Admin'}});
+    }
+
+
+    // 2. Calculate date range for the month
+    const startDate = new Date(year, month - 1, 1);
+    const endDate = new Date(year, month, 0, 23, 59, 59, 999);
+
+    // 3. For each user, aggregate their attendance
+    const employeeReports = await Promise.all(
+      users.map(async (user) => {
+        const records = await AttendanceSystem.find({
+          userId: user._id,
+          date: { $gte: startDate, $lte: endDate },
+        
+        }).populate('teamId', 'name');
+        if(records.length > 0){
+          dataFound = true;
+        }
+
+        // Calculate totals
+        let totalExtraHours = 0;
+        let approvedExtraHours = 0;
+        let singlePaidHours = 0;
+        let doublePaidHours = 0;
+        let rejectedHours = 0;
+        let pendingHours = 0;
+        let finalDeductions = 0;
+        let absentDays = 0;
+        let leaveDays = 0;
+
+        // Track which days have records
+        const recordedDays = new Set();
+
+        records.forEach(record => {
+          // Track day
+          const dayOfMonth = new Date(record.date).getDate();
+          recordedDays.add(dayOfMonth);
+
+          // Aggregate extra hours
+          totalExtraHours += record.extraHoursMinutes || 0;
+          
+          // Aggregate deductions
+          finalDeductions += record.deductionMinutes || 0;
+
+          // Count absences and leaves
+          if (record.isAbsent) {
+            absentDays++;
+          }
+          if (record.isPaidLeave) {
+            leaveDays++;
+          }
+
+          // Categorize by approval status
+          if (record.approvalStatus === 'Approved') {
+            const multiplier = record.payoutMultiplier || 2;
+            approvedExtraHours += record.extraHoursMinutes || 0;
+            
+            if (multiplier === 2) {
+              doublePaidHours += record.extraHoursMinutes || 0;
+            } else {
+              singlePaidHours += record.extraHoursMinutes || 0;
+            }
+          } else if (record.approvalStatus === 'SinglePay') {
+            approvedExtraHours += record.extraHoursMinutes || 0;
+            singlePaidHours += record.extraHoursMinutes || 0;
+          } else if (record.approvalStatus === 'Rejected') {
+            rejectedHours += record.extraHoursMinutes || 0;
+          } else if (record.approvalStatus === 'Pending' || record.approvalStatus === 'NA') {
+            pendingHours += record.extraHoursMinutes || 0;
+          }
+        });
+
+        // Calculate missing days (absent days not explicitly marked)
+        // Only count weekdays up to today (or end of month if month has passed)
+        const today = new Date();
+        const lastDayToCheck = endDate < today ? endDate : new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        
+        // Count expected weekdays
+        let expectedWeekdays = 0;
+        const currentDate = new Date(startDate);
+        while (currentDate <= lastDayToCheck) {
+          const dayOfWeek = currentDate.getDay();
+          // 0 = Sunday, 6 = Saturday - only count Mon-Fri
+          if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+            expectedWeekdays++;
+          }
+          currentDate.setDate(currentDate.getDate() + 1);
+        }
+        
+        // Count recorded weekdays
+        let recordedWeekdays = 0;
+        recordedDays.forEach(day => {
+          const date = new Date(year, month - 1, day);
+          const dayOfWeek = date.getDay();
+          // Only count if it's a weekday and hasn't exceeded lastDayToCheck
+          if (dayOfWeek !== 0 && dayOfWeek !== 6 && date <= lastDayToCheck) {
+            recordedWeekdays++;
+          }
+        });
+        
+        const missingWeekdays = expectedWeekdays - recordedWeekdays;
+        absentDays += missingWeekdays;
+
+        // Final extra hours to pay = (double paid × 2) + single paid
+        const finalExtraHoursToPay = (doublePaidHours * 2) + singlePaidHours;
+
+        
+
+
+        return {
+          userId: user._id,
+          name: user.name,
+          email: user.email,
+          totalExtraHours,
+          approvedExtraHours,
+          singlePaidHours,
+          finalExtraHoursToPay,
+          finalDeductions,
+          absentDays,
+          leaveDays,
+          breakdown: {
+            doublePaidHours,
+            singlePaidHours,
+            rejectedHours,
+            pendingHours
+          }
+        };
+      })
+    );
+
+    
+
+    return {
+      success: true,
+      month,
+      year,
+      employees: dataFound ? employeeReports : []
+    };
+  } catch (error) {
+    console.error('Error generating grand attendance report:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   getAttendanceRecords,
   getAttendanceByUser,
   getAttendanceByDate,
   updateApprovalStatus,
+  bulkUpdateStatus,
+  getGrandAttendanceReport,
   getMonthlyStats,
   getAttendanceById,
   toggleIgnoreDeduction,
