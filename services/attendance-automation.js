@@ -5,6 +5,7 @@ const Team = require('../models/Team');
 const AttendanceSystem = require('../models/AttendanceSystem');
 const { getActiveSettings, createSettingsSnapshot, updateLastFetchedDate } = require('./systemSettingsService');
 const { getCurrentMonthCounter, incrementBufferCounter } = require('./bufferCounterService');
+const { isHoliday, calculateHolidayBonus } = require('./holidayService');
 
 async function getDigestClient() {
     const { default: DigestClient } = await import('digest-fetch');
@@ -359,6 +360,18 @@ async function calculateAttendanceRecords(group) {
                 ruleApplied.hasExtraHours = true;
             }
         }
+
+            // === OPERATIONS TEAM EARLY ARRIVAL BONUS ===
+            // If user is in Operations team and arrived BEFORE office start time,
+            // add those early minutes as extra hours
+            if (team.name === 'Operations' && checkIn.isBefore(start)) {
+                const earlyArrivalMinutes = start.diff(checkIn, 'minutes');
+                if (earlyArrivalMinutes > 0) {
+                    extraHoursMinutes += earlyArrivalMinutes;
+                    ruleApplied.hasExtraHours = extraHoursMinutes > 0;
+                    console.log(`[OPERATIONS] Early arrival bonus: +${earlyArrivalMinutes}min for ${user.name} (arrived ${earlyArrivalMinutes}min before ${officeStart})`);
+                }
+            }
         } // End of weekend vs weekday logic
 
         // === RULE 4: Update buffer counter if needed ===
@@ -374,6 +387,23 @@ async function calculateAttendanceRecords(group) {
         const records = [];
 
         if (!isOvernight) {
+            // Check for holiday work (only if not weekend - weekend takes precedence)
+            let isHolidayWork = false;
+            let holidayBonusMinutes = 0;
+            
+            if (!isWeekendWork) {
+              isHolidayWork = await isHoliday(workDate);
+              if (isHolidayWork) {
+                holidayBonusMinutes = calculateHolidayBonus(
+                  workDate,
+                  officeEnd,
+                  checkIn.format('HH:mm'),
+                  checkOut.format('HH:mm')
+                );
+                console.log(`[HOLIDAY] Holiday work detected for ${user.name} on ${workDate}. Bonus: ${holidayBonusMinutes} minutes (${(holidayBonusMinutes/60).toFixed(2)} hours)`);
+              }
+            }
+            
             // Single day record
             records.push({
                 userId: user._id,
@@ -392,7 +422,10 @@ async function calculateAttendanceRecords(group) {
                 systemSettingsSnapshot: snapshot,
                 payoutMultiplier: isWeekendWork ? 2 : user.payoutMultiplier,
                 calculatedAt: new Date(),
-                isWeekendWork: isWeekendWork
+                isWeekendWork: isWeekendWork,
+                isHolidayWork: isHolidayWork,
+                holidayBonusMinutes: holidayBonusMinutes,
+                holidayBonusApplied: isHolidayWork
             });
         } else {
             // MIDNIGHT CHECKOUT: Split into two records

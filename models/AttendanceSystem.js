@@ -204,6 +204,21 @@ const attendanceSystemSchema = new mongoose.Schema({
   isWeekendWork : {
     type : Boolean,
     default : false
+  },
+  
+  // Holiday bonus tracking
+  isHolidayWork: {
+    type: Boolean,
+    default: false
+  },
+  holidayBonusMinutes: {
+    type: Number,
+    default: 0,
+    min: 0
+  },
+  holidayBonusApplied: {
+    type: Boolean,
+    default: false
   }
 }, {
   timestamps: true

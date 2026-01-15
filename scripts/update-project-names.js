@@ -64,7 +64,7 @@ async function updateProjectNames() {
       }
     }
     
-    console.log('\n🎉 Update Summary:');
+    console.log('\nUpdate Summary:');
     console.log(`  - Task logs updated: ${updatedCount}`);
     console.log(`  - Individual tasks updated: ${taskCount}`);
     

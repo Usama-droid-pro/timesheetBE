@@ -18,6 +18,7 @@ const systemSettingsRoutes = require('./routes/systemSettingsRoutes');
 const bufferCounterRoutes = require('./routes/bufferCounterRoutes');
 const attendanceSystemRoutes = require('./routes/attendanceSystemRoutes');
 const attendanceAutomationRoute = require('./routes/attendanceAutomationRoute');
+const holidayRoutes = require('./routes/holidayRoutes');
 
 // Import middleware
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
@@ -71,6 +72,7 @@ app.use('/api/teams', teamRoutes);
 app.use('/api/system-settings', systemSettingsRoutes);
 app.use('/api/buffer-counter', bufferCounterRoutes);
 app.use('/api/attendance-system', attendanceSystemRoutes);
+app.use('/api/holidays', holidayRoutes);
 
 
 // 404 handler for undefined routes

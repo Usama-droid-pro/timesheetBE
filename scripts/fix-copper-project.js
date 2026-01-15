@@ -62,7 +62,7 @@ async function fixCopperProject() {
       }
     }
     
-    console.log(`\n🎉 Successfully fixed ${totalFixed} task entries!`);
+    console.log(`\nSuccessfully fixed ${totalFixed} task entries!`);
     
     // 3. Verify the fix
     console.log('\n🔍 Verifying the fix...');

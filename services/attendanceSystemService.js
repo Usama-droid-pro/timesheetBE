@@ -7,6 +7,7 @@ const { getActiveSettings } = require('./systemSettingsService');
 const { createNaiveMoment } = require('./attendance-automation');
 const { getTeamByIdForUser } = require('./teamService');
 const { createSettingsSnapshot } = require('./systemSettingsService');
+const { isHoliday, calculateHolidayBonus, recalculateHolidayBonusForRecord } = require('./holidayService');
 
 /**
  * Check if a date is a weekend (Saturday or Sunday)
@@ -159,6 +160,18 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
         }
       }
 
+      // === OPERATIONS TEAM EARLY ARRIVAL BONUS ===
+      // If user is in Operations team and arrived BEFORE office start time,
+      // add those early minutes as extra hours
+      if (team.name === 'Operations' && checkIn.isBefore(start)) {
+        const earlyArrivalMinutes = start.diff(checkIn, 'minutes');
+        if (earlyArrivalMinutes > 0) {
+          extraHoursMinutes += earlyArrivalMinutes;
+          ruleApplied.hasExtraHours = extraHoursMinutes > 0;
+          console.log(`[OPERATIONS] Early arrival bonus: +${earlyArrivalMinutes}min for ${user.name}`);
+        }
+      }
+
     } else {
       // No rules applied: all work time is extra hours
       totalWorkMinutes = checkOut.diff(checkIn, 'minutes');
@@ -187,9 +200,47 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
       record.bufferIncrementedThisDay = incrementBuffer;
       record.systemSettingsSnapshot = snapshot;
       record.calculatedAt = new Date();
+      
+      // Recalculate holiday bonus if this is a holiday (only if not weekend)
+      if (!record.isWeekendWork) {
+        const isHolidayDate = await isHoliday(workDate);
+        if (isHolidayDate) {
+          const holidayBonusMinutes = calculateHolidayBonus(
+            workDate,
+            officeEnd,
+            checkIn.format('HH:mm'),
+            checkOut.format('HH:mm')
+          );
+          record.isHolidayWork = true;
+          record.holidayBonusMinutes = holidayBonusMinutes;
+          record.holidayBonusApplied = true;
+          console.log(`[HOLIDAY] Updated holiday bonus for ${user.name}: ${holidayBonusMinutes} minutes (${(holidayBonusMinutes/60).toFixed(2)} hours)`);
+        } else {
+          record.isHolidayWork = false;
+          record.holidayBonusMinutes = 0;
+          record.holidayBonusApplied = false;
+        }
+      }
     } else {
       // Determine payout multiplier: 2x for weekends, otherwise user's default
       const finalMultiplier = isWeekendWork ? 2 : user.payoutMultiplier;
+      
+      // Check for holiday work (only if not weekend - weekend takes precedence)
+      let isHolidayWork = false;
+      let holidayBonusMinutes = 0;
+      
+      if (!isWeekendWork) {
+        isHolidayWork = await isHoliday(workDate);
+        if (isHolidayWork) {
+          holidayBonusMinutes = calculateHolidayBonus(
+            workDate,
+            officeEnd,
+            checkInTime,
+            checkOutTime
+          );
+          console.log(`[HOLIDAY] Holiday work detected for ${user.name}. Bonus: ${holidayBonusMinutes} minutes (${(holidayBonusMinutes/60).toFixed(2)} hours)`);
+        }
+      }
       
       record = new AttendanceSystem({
         userId,
@@ -210,7 +261,10 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
         approvalStatus: 'Pending',
         calculatedAt: new Date(),
         isManualEntry: true,
-        isWeekendWork: isWeekendWork
+        isWeekendWork: isWeekendWork,
+        isHolidayWork: isHolidayWork,
+        holidayBonusMinutes: holidayBonusMinutes,
+        holidayBonusApplied: isHolidayWork
       });
     }
 
@@ -1168,6 +1222,7 @@ async function getGrandAttendanceReport(month, year, teamId = null) {
         let finalDeductions = 0;
         let absentDays = 0;
         let leaveDays = 0;
+        let holidayBonusHours = 0;
 
         // Track which days have records
         const recordedDays = new Set();
@@ -1179,6 +1234,9 @@ async function getGrandAttendanceReport(month, year, teamId = null) {
 
           // Aggregate extra hours
           totalExtraHours += record.extraHoursMinutes || 0;
+          
+          // Track holiday bonus separately
+          holidayBonusHours += record.holidayBonusMinutes || 0;
           
           // Aggregate deductions
           finalDeductions += record.deductionMinutes || 0;
@@ -1242,8 +1300,8 @@ async function getGrandAttendanceReport(month, year, teamId = null) {
         const missingWeekdays = expectedWeekdays - recordedWeekdays;
         absentDays += missingWeekdays;
 
-        // Final extra hours to pay = (double paid × 2) + single paid
-        const finalExtraHoursToPay = (doublePaidHours * 2) + singlePaidHours;
+        // Final extra hours to pay = (double paid × 2) + single paid + holiday bonus (1x)
+        const finalExtraHoursToPay = (doublePaidHours * 2) + singlePaidHours + holidayBonusHours;
 
         
 
@@ -1259,6 +1317,7 @@ async function getGrandAttendanceReport(month, year, teamId = null) {
           finalDeductions,
           absentDays,
           leaveDays,
+          holidayBonusHours, // Separate holiday bonus
           breakdown: {
             doublePaidHours,
             singlePaidHours,

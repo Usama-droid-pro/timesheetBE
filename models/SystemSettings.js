@@ -64,7 +64,35 @@ const systemSettingsSchema = new mongoose.Schema({
   lastAttendanceFetchedDate: {
     type: Date,
     default: null
-  }
+  },
+  
+  // Holiday calendar
+  holidays: [{
+    date: {
+      type: Date,
+      required: true
+    },
+    name: {
+      type: String,
+      required: true
+    },
+    description: {
+      type: String,
+      default: ''
+    },
+    addedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User'
+    },
+    addedAt: {
+      type: Date,
+      default: Date.now
+    },
+    recalculationTriggered: {
+      type: Boolean,
+      default: false
+    }
+  }]
 }, {
   timestamps: true
 });
