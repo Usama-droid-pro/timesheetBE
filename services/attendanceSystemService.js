@@ -1272,8 +1272,9 @@ async function getGrandAttendanceReport(month, year, teamId = null) {
         // Calculate missing days (absent days not explicitly marked)
         // Only count weekdays up to today (or end of month if month has passed)
         const today = new Date();
-        const lastDayToCheck = endDate < today ? endDate : new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        
+        let lastDayToCheck = endDate < today ? endDate : new Date(today.getFullYear(), today.getMonth(), today.getDate());
+        lastDayToCheck = lastDayToCheck.toISOString().split("T")[0] + 'T00:00:00.000Z';
+        lastDayToCheck = new Date(lastDayToCheck);
         // Count expected weekdays
         let expectedWeekdays = 0;
         const currentDate = new Date(startDate);
@@ -1281,7 +1282,8 @@ async function getGrandAttendanceReport(month, year, teamId = null) {
           const dayOfWeek = currentDate.getDay();
           // 0 = Sunday, 6 = Saturday - only count Mon-Fri
           if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-            expectedWeekdays++;
+              expectedWeekdays++;
+
           }
           currentDate.setDate(currentDate.getDate() + 1);
         }
