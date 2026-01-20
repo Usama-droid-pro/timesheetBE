@@ -8,7 +8,6 @@ const { createNaiveMoment } = require('./attendance-automation');
 const { getTeamByIdForUser } = require('./teamService');
 const { createSettingsSnapshot } = require('./systemSettingsService');
 const { isHoliday, calculateHolidayBonus, recalculateHolidayBonusForRecord } = require('./holidayService');
-
 /**
  * Check if a date is a weekend (Saturday or Sunday)
  * @param {string} dateStr - Date string in YYYY-MM-DD format
@@ -19,6 +18,12 @@ function isWeekend(dateStr) {
   const day = date.getDay();
   return day === 0 || day === 6; // 0 = Sunday, 6 = Saturday
 }
+function toUTCDateFromYMD(ymd) {
+    const [y, m, d] = String(ymd).split('-').map(v => Number(v));
+    if (!y || !m || !d) return new Date(ymd);
+    return new Date(Date.UTC(y, m - 1, d, 0, 0, 0));
+}
+
 
 async function markManualAttendanceService(userId, date, checkInTime, checkOutTime, attendanceId = null, options = {}) {
   try {
@@ -36,6 +41,8 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
     }
     
     let record;
+    let isUpdate = false;
+    
     if (attendanceId) {
       record = await AttendanceSystem.findById(attendanceId);
       if (!record) {
@@ -43,16 +50,18 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
       }
       userId = record.userId;
       workDate = moment(record.date).format('YYYY-MM-DD');
+      isUpdate = true;
     } else {
       const exists = await AttendanceSystem.findOne({
         userId,
-        date: moment(date).format('YYYY-MM-DD')
+        date: toUTCDateFromYMD(date)
       });
 
       if (exists) {
         throw new Error('Attendance record already exists for this date');
       }
     }
+
     const user = await User.findById(userId);
     if (!user) {
       throw new Error('User not found');
@@ -64,14 +73,13 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
     }
 
     const settings = await getActiveSettings();
-    // Pass workDate to get correct month's buffer counter (critical for retro entries)
     const bufferCounter = await getCurrentMonthCounter(user._id, workDate);
 
     // 3. Time parsing & Setup
     const officeStart = user.officeStartTime || settings.defaultOfficeStartTime;
     const officeEnd = user.officeEndTime || settings.defaultOfficeEndTime;
 
-    // Create moments
+    // Create moments - IMPORTANT: Use workDate from frontend, don't let system change timezone
     const start = createNaiveMoment(`${workDate} ${officeStart}:00`);
     const end = createNaiveMoment(`${workDate} ${officeEnd}:00`);
     const checkIn = createNaiveMoment(`${workDate} ${checkInTime}:00`); // manual input HH:mm
@@ -80,6 +88,13 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
     // Handle overnight: if checkOut < checkIn, assume next day
     if (checkOut.isBefore(checkIn)) {
       checkOut.add(1, 'day');
+    }
+
+    // === DETECT OVERNIGHT/MIDNIGHT CHECKOUT ===
+    const isOvernight = checkOut.format('YYYY-MM-DD') !== workDate;
+    
+    if (isOvernight) {
+      console.log(`[OVERNIGHT] Midnight checkout detected for ${user.name}. Check-in: ${workDate} ${checkInTime}, Check-out: ${checkOut.format('YYYY-MM-DD HH:mm')}`);
     }
 
     // 4. Calculations (Mirroring automation logic)
@@ -117,7 +132,9 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
         ruleApplied.isSafeZone = true;
       }
 
-      if (checkOut.isBefore(end)) {
+      // For overnight, don't check early checkout against original end time
+      // We'll handle this in the split logic
+      if (!isOvernight && checkOut.isBefore(end)) {
         ruleApplied.isEarlyCheckout = true;
         const earlyMinutes = end.diff(checkOut, 'minutes');
         deductionMinutes += earlyMinutes;
@@ -135,7 +152,6 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
 
       console.log("Checking")
       console.log(totalWorkMinutes, requiredMinutes)
-
 
       if (ruleApplied.isLate) {
         if (checkOut.isAfter(end)) {
@@ -189,8 +205,9 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
     // Capture previous state for update scenario (before modifying record)
     const previouslyIncremented = attendanceId ? record.bufferIncrementedThisDay : false;
 
-    // Save or Update
-    if (attendanceId) {
+    // === HANDLE OVERNIGHT SPLIT OR REGULAR SAVE ===
+    if (isUpdate && !isOvernight) {
+      // UPDATE SCENARIO (NO OVERNIGHT): Just update the existing record
       record.checkInTime = checkIn.format('HH:mm');
       record.checkOutTime = checkOut.format('HH:mm');
       record.totalWorkMinutes = totalWorkMinutes;
@@ -221,8 +238,160 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
           record.holidayBonusApplied = false;
         }
       }
-    } else {
-      // Determine payout multiplier: 2x for weekends, otherwise user's default
+      
+      await record.save();
+      
+    } else if (isUpdate && isOvernight) {
+      // UPDATE SCENARIO (OVERNIGHT DETECTED): Delete original and create split records
+      console.log(`[OVERNIGHT UPDATE] Deleting original record and creating split records for ${user.name}`);
+      
+      // Delete the original record
+      await AttendanceSystem.findByIdAndDelete(attendanceId);
+      console.log(`[OVERNIGHT UPDATE] Original record deleted: ${attendanceId}`);
+      
+      const day1End = createNaiveMoment(`${workDate} 23:59:00`);
+      const day2Date = checkOut.format('YYYY-MM-DD');
+      const day2Start = createNaiveMoment(`${day2Date} 00:00:00`);
+
+      // === RECORD 1: Day 1 (check-in to 23:59) ===
+      const day1WorkMinutes = day1End.diff(checkIn, 'minutes');
+      
+      // Recalculate for day 1 only
+      let day1ExtraMinutes = 0;
+      if (applyRules) {
+        // Extra hours for day 1: time after office end
+        if (day1End.isAfter(end)) {
+          day1ExtraMinutes = day1End.diff(end, 'minutes');
+        }
+        
+        // Add Operations early arrival bonus if applicable
+        if (team.name === 'Operations' && checkIn.isBefore(start)) {
+          const earlyArrivalMinutes = start.diff(checkIn, 'minutes');
+          if (earlyArrivalMinutes > 0) {
+            day1ExtraMinutes += earlyArrivalMinutes;
+          }
+        }
+      } else {
+        // No rules: all time is extra
+        day1ExtraMinutes = day1WorkMinutes;
+      }
+      
+      // Check for holiday work on day 1 (only if not weekend)
+      const day1IsWeekend = isWeekend(workDate);
+      let day1IsHoliday = false;
+      let day1HolidayBonus = 0;
+      
+      if (!day1IsWeekend) {
+        day1IsHoliday = await isHoliday(workDate);
+        if (day1IsHoliday) {
+          day1HolidayBonus = calculateHolidayBonus(
+            workDate,
+            officeEnd,
+            checkInTime,
+            '23:59'
+          );
+          console.log(`[HOLIDAY] Day 1 holiday work detected for ${user.name}. Bonus: ${day1HolidayBonus} minutes`);
+        }
+      }
+      
+      const day1Multiplier = day1IsWeekend ? 2 : user.payoutMultiplier;
+      
+      record = new AttendanceSystem({
+        userId,
+        teamId: team._id,
+        date: toUTCDateFromYMD(workDate),
+        checkInTime: checkIn.format('HH:mm'),
+        checkOutTime: '23:59',
+        officeStartTime: officeStart,
+        officeEndTime: officeEnd,
+        totalWorkMinutes: day1WorkMinutes,
+        deductionMinutes, // All deduction on day 1
+        extraHoursMinutes: day1ExtraMinutes,
+        ruleApplied,
+        bufferCountAtCalculation: bufferCounter.bufferUseCount,
+        bufferIncrementedThisDay: incrementBuffer,
+        systemSettingsSnapshot: snapshot,
+        payoutMultiplier: day1Multiplier,
+        approvalStatus: 'Pending',
+        calculatedAt: new Date(),
+        isManualEntry: true,
+        isWeekendWork: day1IsWeekend,
+        isHolidayWork: day1IsHoliday,
+        holidayBonusMinutes: day1HolidayBonus,
+        holidayBonusApplied: day1IsHoliday
+      });
+      
+      await record.save();
+      console.log(`[OVERNIGHT UPDATE] Day 1 record saved: ${workDate} ${checkIn.format('HH:mm')} - 23:59`);
+
+      // === RECORD 2: Day 2 (00:00 to checkout) ===
+      const day2WorkMinutes = checkOut.diff(day2Start, 'minutes');
+      
+      // Check for weekend/holiday on day 2
+      const day2IsWeekend = isWeekend(day2Date);
+      let day2IsHoliday = false;
+      let day2HolidayBonus = 0;
+      
+      if (!day2IsWeekend) {
+        day2IsHoliday = await isHoliday(day2Date);
+        if (day2IsHoliday) {
+          day2HolidayBonus = calculateHolidayBonus(
+            day2Date,
+            officeEnd,
+            '00:00',
+            checkOut.format('HH:mm')
+          );
+          console.log(`[HOLIDAY] Day 2 holiday work detected for ${user.name}. Bonus: ${day2HolidayBonus} minutes`);
+        }
+      }
+      
+      const day2Multiplier = day2IsWeekend ? 2 : user.payoutMultiplier;
+      
+      const secondRecord = new AttendanceSystem({
+        userId,
+        teamId: team._id,
+        date: toUTCDateFromYMD(day2Date),
+        checkInTime: '00:00',
+        checkOutTime: checkOut.format('HH:mm'),
+        officeStartTime: officeStart,
+        officeEndTime: officeEnd,
+        totalWorkMinutes: day2WorkMinutes,
+        deductionMinutes: 0, // No deduction on day 2
+        extraHoursMinutes: day2WorkMinutes, // All day 2 time is extra
+        ruleApplied: {
+          isLate: false,
+          hasDeduction: false,
+          hasExtraHours: day2WorkMinutes > 0,
+          isBufferUsed: false,
+          isBufferAbused: false,
+          isSafeZone: false,
+          isEarlyCheckout: false,
+          isWorkedFromHome: isWorkedFromHome,
+          noCalculationRulesApplied: !applyRules
+        },
+        bufferCountAtCalculation: bufferCounter.bufferUseCount,
+        bufferIncrementedThisDay: false, // Only day 1 affects buffer
+        systemSettingsSnapshot: snapshot,
+        payoutMultiplier: day2Multiplier,
+        approvalStatus: 'Pending',
+        calculatedAt: new Date(),
+        isManualEntry: true,
+        isAnotherEntry: true,
+        anotherEntryDetails: {
+          entryNo: 2,
+          entryType: 'manual'
+        },
+        isWeekendWork: day2IsWeekend,
+        isHolidayWork: day2IsHoliday,
+        holidayBonusMinutes: day2HolidayBonus,
+        holidayBonusApplied: day2IsHoliday
+      });
+      
+      await secondRecord.save();
+      console.log(`[OVERNIGHT UPDATE] Day 2 record saved: ${day2Date} 00:00 - ${checkOut.format('HH:mm')}`);
+      
+    } else if (!isOvernight) {
+      // CREATE SCENARIO - SINGLE DAY RECORD
       const finalMultiplier = isWeekendWork ? 2 : user.payoutMultiplier;
       
       // Check for holiday work (only if not weekend - weekend takes precedence)
@@ -245,7 +414,7 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
       record = new AttendanceSystem({
         userId,
         teamId: team._id,
-        date: moment(workDate).toDate(),
+        date: toUTCDateFromYMD(workDate),
         checkInTime: checkIn.format('HH:mm'),
         checkOutTime: checkOut.format('HH:mm'),
         officeStartTime: officeStart,
@@ -266,35 +435,175 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
         holidayBonusMinutes: holidayBonusMinutes,
         holidayBonusApplied: isHolidayWork
       });
-    }
+      
+      await record.save();
+      
+    } else {
+      // CREATE SCENARIO - OVERNIGHT: SPLIT INTO TWO RECORDS
+      console.log(`[OVERNIGHT] Splitting record into two entries for ${user.name}`);
+      
+      const day1End = createNaiveMoment(`${workDate} 23:59:00`);
+      const day2Date = checkOut.format('YYYY-MM-DD');
+      const day2Start = createNaiveMoment(`${day2Date} 00:00:00`);
 
-    await record.save();
-
-    if (applyRules) {
-      if (attendanceId) {
-        if (incrementBuffer && !previouslyIncremented) {
-          const counter = await incrementBufferCounter(user._id, workDate);
-
-          if (counter.bufferAbusedReached) {
-            await applyRetroactiveBufferDeductions(user._id, workDate);
-          }
-        } else if (!incrementBuffer && previouslyIncremented) {
-          // Pass workDate to get correct month's counter
-          const counterBefore = await getCurrentMonthCounter(user._id, workDate);
-          const wasAbused = counterBefore.bufferAbusedReached;
-
-          const counter = await decrementBufferCounter(user._id, workDate);
-
-          if (wasAbused && !counter.bufferAbusedReached) {
-            await undoRetroactiveBufferDeductions(user._id, workDate);
+      // === RECORD 1: Day 1 (check-in to 23:59) ===
+      const day1WorkMinutes = day1End.diff(checkIn, 'minutes');
+      
+      // Recalculate for day 1 only
+      let day1ExtraMinutes = 0;
+      if (applyRules) {
+        // Extra hours for day 1: time after office end
+        if (day1End.isAfter(end)) {
+          day1ExtraMinutes = day1End.diff(end, 'minutes');
+        }
+        
+        // Add Operations early arrival bonus if applicable
+        if (team.name === 'Operations' && checkIn.isBefore(start)) {
+          const earlyArrivalMinutes = start.diff(checkIn, 'minutes');
+          if (earlyArrivalMinutes > 0) {
+            day1ExtraMinutes += earlyArrivalMinutes;
           }
         }
       } else {
-        if (incrementBuffer) {
-          const counter = await incrementBufferCounter(user._id, workDate);
-          if (counter.bufferAbusedReached) {
-            await applyRetroactiveBufferDeductions(user._id, workDate);
-          }
+        // No rules: all time is extra
+        day1ExtraMinutes = day1WorkMinutes;
+      }
+      
+      // Check for holiday work on day 1 (only if not weekend)
+      const day1IsWeekend = isWeekend(workDate);
+      let day1IsHoliday = false;
+      let day1HolidayBonus = 0;
+      
+      if (!day1IsWeekend) {
+        day1IsHoliday = await isHoliday(workDate);
+        if (day1IsHoliday) {
+          day1HolidayBonus = calculateHolidayBonus(
+            workDate,
+            officeEnd,
+            checkInTime,
+            '23:59'
+          );
+          console.log(`[HOLIDAY] Day 1 holiday work detected for ${user.name}. Bonus: ${day1HolidayBonus} minutes`);
+        }
+      }
+      
+      const day1Multiplier = day1IsWeekend ? 2 : user.payoutMultiplier;
+      
+      record = new AttendanceSystem({
+        userId,
+        teamId: team._id,
+        date: toUTCDateFromYMD(workDate),
+        checkInTime: checkIn.format('HH:mm'),
+        checkOutTime: '23:59',
+        officeStartTime: officeStart,
+        officeEndTime: officeEnd,
+        totalWorkMinutes: day1WorkMinutes,
+        deductionMinutes, // All deduction on day 1
+        extraHoursMinutes: day1ExtraMinutes,
+        ruleApplied,
+        bufferCountAtCalculation: bufferCounter.bufferUseCount,
+        bufferIncrementedThisDay: incrementBuffer,
+        systemSettingsSnapshot: snapshot,
+        payoutMultiplier: day1Multiplier,
+        approvalStatus: 'Pending',
+        calculatedAt: new Date(),
+        isManualEntry: true,
+        isWeekendWork: day1IsWeekend,
+        isHolidayWork: day1IsHoliday,
+        holidayBonusMinutes: day1HolidayBonus,
+        holidayBonusApplied: day1IsHoliday
+      });
+      
+      await record.save();
+      console.log(`[OVERNIGHT] Day 1 record saved: ${workDate} ${checkIn.format('HH:mm')} - 23:59`);
+
+      // === RECORD 2: Day 2 (00:00 to checkout) ===
+      const day2WorkMinutes = checkOut.diff(day2Start, 'minutes');
+      
+      // Check for weekend/holiday on day 2
+      const day2IsWeekend = isWeekend(day2Date);
+      let day2IsHoliday = false;
+      let day2HolidayBonus = 0;
+      
+      if (!day2IsWeekend) {
+        day2IsHoliday = await isHoliday(day2Date);
+        if (day2IsHoliday) {
+          day2HolidayBonus = calculateHolidayBonus(
+            day2Date,
+            officeEnd,
+            '00:00',
+            checkOut.format('HH:mm')
+          );
+          console.log(`[HOLIDAY] Day 2 holiday work detected for ${user.name}. Bonus: ${day2HolidayBonus} minutes`);
+        }
+      }
+      
+      const day2Multiplier = day2IsWeekend ? 2 : user.payoutMultiplier;
+      
+      const secondRecord = new AttendanceSystem({
+        userId,
+        teamId: team._id,
+        date: toUTCDateFromYMD(day2Date),
+        checkInTime: '00:00',
+        checkOutTime: checkOut.format('HH:mm'),
+        officeStartTime: officeStart,
+        officeEndTime: officeEnd,
+        totalWorkMinutes: day2WorkMinutes,
+        deductionMinutes: 0, // No deduction on day 2
+        extraHoursMinutes: day2WorkMinutes, // All day 2 time is extra
+        ruleApplied: {
+          isLate: false,
+          hasDeduction: false,
+          hasExtraHours: day2WorkMinutes > 0,
+          isBufferUsed: false,
+          isBufferAbused: false,
+          isSafeZone: false,
+          isEarlyCheckout: false,
+          isWorkedFromHome: isWorkedFromHome,
+          noCalculationRulesApplied: !applyRules
+        },
+        bufferCountAtCalculation: bufferCounter.bufferUseCount,
+        bufferIncrementedThisDay: false, // Only day 1 affects buffer
+        systemSettingsSnapshot: snapshot,
+        payoutMultiplier: day2Multiplier,
+        approvalStatus: 'Pending',
+        calculatedAt: new Date(),
+        isManualEntry: true,
+        isAnotherEntry: true,
+        anotherEntryDetails: {
+          entryNo: 2,
+          entryType: 'manual'
+        },
+        isWeekendWork: day2IsWeekend,
+        isHolidayWork: day2IsHoliday,
+        holidayBonusMinutes: day2HolidayBonus,
+        holidayBonusApplied: day2IsHoliday
+      });
+      
+      await secondRecord.save();
+      console.log(`[OVERNIGHT] Day 2 record saved: ${day2Date} 00:00 - ${checkOut.format('HH:mm')}`);
+    }
+
+    // Buffer counter updates (only for non-update scenarios and when rules apply)
+    if (applyRules && !isUpdate) {
+      if (incrementBuffer) {
+        const counter = await incrementBufferCounter(user._id, workDate);
+        if (counter.bufferAbusedReached) {
+          await applyRetroactiveBufferDeductions(user._id, workDate);
+        }
+      }
+    } else if (applyRules && isUpdate) {
+      if (incrementBuffer && !previouslyIncremented) {
+        const counter = await incrementBufferCounter(user._id, workDate);
+        if (counter.bufferAbusedReached) {
+          await applyRetroactiveBufferDeductions(user._id, workDate);
+        }
+      } else if (!incrementBuffer && previouslyIncremented) {
+        const counterBefore = await getCurrentMonthCounter(user._id, workDate);
+        const wasAbused = counterBefore.bufferAbusedReached;
+        const counter = await decrementBufferCounter(user._id, workDate);
+        if (wasAbused && !counter.bufferAbusedReached) {
+          await undoRetroactiveBufferDeductions(user._id, workDate);
         }
       }
     }
@@ -306,6 +615,8 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
     throw error;
   }
 }
+
+
 
 /**
  * Get attendance records with optional filters
