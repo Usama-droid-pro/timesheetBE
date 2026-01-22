@@ -10,20 +10,14 @@ const dayjs = require('dayjs');
 const {
     processAttendance,
     getAutomationState,
+    startCronJob,
+    stopCronJob,
+    getCronStatus,
     CONFIG,
 } = require('../services/attendance-automation');
 
-const requireAuth = (req, res, next) => {
 
-    //   const authHeader = req.headers.authorization;
-    //    if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
-    //    return res.status(401).json({ error: 'Unauthorized' });
-    //    }
-
-    next();
-};
-
-router.get('/automation/trigger', requireAuth, async (req, res) => {
+router.get('/automation/trigger', async (req, res) => {
     try {
         const { startTime, endTime } = req.body;
 
@@ -33,9 +27,13 @@ router.get('/automation/trigger', requireAuth, async (req, res) => {
 
         // console.log('[API] Manual trigger requested by:', req.user.email);
 
-        const result = await processAttendance(customStartTime, customEndTime);
+        const result =  processAttendance(customStartTime, customEndTime);
 
-        return res.json(result);
+        return res.json({
+            success: true,
+            message: 'Automation triggered in the background successfully',
+            data: result,
+        });
     } catch (error) {
         console.error('[API] Error triggering automation:', error);
         return res.status(500).json({
@@ -46,22 +44,19 @@ router.get('/automation/trigger', requireAuth, async (req, res) => {
     }
 });
 
-/**
- * GET /api/extrahours/automation/status
- * Get current automation status
- */
-router.get('/automation/status', requireAuth, async (req, res) => {
+router.get('/automation/status', async (req, res) => {
     try {
         const state = getAutomationState();
+        const cronStatus = getCronStatus();
 
         return res.json({
             success: true,
             data: {
                 ...state,
+                cron: cronStatus,
                 config: {
                     cronSchedule: CONFIG.CRON.SCHEDULE,
-                    officeEndTime: `${CONFIG.OFFICE_HOURS.END_HOUR}:${String(CONFIG.OFFICE_HOURS.END_MINUTE).padStart(2, '0')}`,
-                    thresholdMinutes: CONFIG.OFFICE_HOURS.THRESHOLD_MINUTES,
+                    autoStart: CONFIG.CRON.AUTO_START,
                 },
             },
         });
@@ -75,11 +70,7 @@ router.get('/automation/status', requireAuth, async (req, res) => {
     }
 });
 
-/**
- * POST /api/extrahours/automation/cron/start
- * Start the cron job
- */
-router.post('/automation/cron/start', requireAuth, async (req, res) => {
+router.post('/automation/cron/start', async (req, res) => {
     try {
         startCronJob();
 
@@ -98,11 +89,7 @@ router.post('/automation/cron/start', requireAuth, async (req, res) => {
     }
 });
 
-/**
- * POST /api/extrahours/automation/cron/stop
- * Stop the cron job
- */
-router.post('/automation/cron/stop', requireAuth, async (req, res) => {
+router.post('/automation/cron/stop', async (req, res) => {
     try {
         stopCronJob();
 
@@ -120,11 +107,7 @@ router.post('/automation/cron/stop', requireAuth, async (req, res) => {
     }
 });
 
-/**
- * POST /api/extrahours/automation/process-date-range
- * Process a specific date range (useful for backfilling data)
- */
-router.post('/automation/process-date-range', requireAuth, async (req, res) => {
+router.post('/automation/process-date-range', async (req, res) => {
     try {
         const { startDate, endDate } = req.body;
 
@@ -152,9 +135,5 @@ router.post('/automation/process-date-range', requireAuth, async (req, res) => {
         });
     }
 });
-
-// ===================================================================
-// EXPORT
-// ===================================================================
 
 module.exports = router;

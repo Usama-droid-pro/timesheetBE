@@ -20,6 +20,9 @@ const attendanceSystemRoutes = require('./routes/attendanceSystemRoutes');
 const attendanceAutomationRoute = require('./routes/attendanceAutomationRoute');
 const holidayRoutes = require('./routes/holidayRoutes');
 
+// Import cron job function
+const { startCronJob } = require('./services/attendance-automation');
+
 // Import middleware
 const { errorHandler, notFoundHandler } = require('./middlewares/errorHandler');
 
@@ -59,20 +62,20 @@ app.get('/health', (req, res) => {
 });
 
 // API Routes
-app.use('/api/auth', authRoutes);
-app.use("/api/attendance-automation", attendanceAutomationRoute)
+app.use('/auth', authRoutes);
+app.use("/attendance-automation", attendanceAutomationRoute)
 app.use(authMiddleware);
-app.use('/api/users', userRoutes);
-app.use('/api/projects', projectRoutes);
-app.use('/api/tasklogs', tasklogRoutes);
-app.use('/api/reports', reportRoutes);
-app.use('/api/teams', teamRoutes);
+app.use('/users', userRoutes);
+app.use('/projects', projectRoutes);
+app.use('/tasklogs', tasklogRoutes);
+app.use('/reports', reportRoutes);
+app.use('/teams', teamRoutes);
 
 // NEW: Attendance system routes
-app.use('/api/system-settings', systemSettingsRoutes);
-app.use('/api/buffer-counter', bufferCounterRoutes);
-app.use('/api/attendance-system', attendanceSystemRoutes);
-app.use('/api/holidays', holidayRoutes);
+app.use('/system-settings', systemSettingsRoutes);
+app.use('/buffer-counter', bufferCounterRoutes);
+app.use('/attendance-system', attendanceSystemRoutes);
+app.use('/holidays', holidayRoutes);
 
 
 // 404 handler for undefined routes
@@ -96,7 +99,9 @@ const connectDB = async () => {
     });
 
     console.log(`✅ MongoDB Connected: ${conn.connection.host}`);
-    // startCronJob();
+    
+    // Start the attendance automation cron job
+    startCronJob();
 
   } catch (error) {
     console.error('❌ MongoDB connection error:', error);

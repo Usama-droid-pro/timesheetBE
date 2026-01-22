@@ -1,5 +1,6 @@
 const axios = require('axios');
 const moment = require('moment');
+const cron = require('node-cron');
 const User = require('../models/User');
 const Team = require('../models/Team');
 const AttendanceSystem = require('../models/AttendanceSystem');
@@ -670,11 +671,75 @@ function getAutomationState() {
     return automationState.getState();
 }
 
+// ===================================================================
+// CRON JOB SETUP
+// ===================================================================
+
+let cronJob = null;
+
+/**
+ * Start the cron job to run daily at 7:00 AM Pakistan time (UTC+5)
+ * Cron expression: '0 7 * * *' means "At 7:00 AM every day"
+ * Since the server is running in Pakistan timezone, this will execute at 7:00 AM local time
+ */
+function startCronJob() {
+    if (cronJob) {
+        console.log('[CRON] Job already running');
+        return;
+    }
+
+    // Run daily at 7:00 AM Pakistan time
+    cronJob = cron.schedule('0 7 * * *', async () => {
+        console.log('\n========================================');
+        console.log('[CRON] Daily attendance processing started at 7:00 AM PKT');
+        console.log('========================================\n');
+        
+        try {
+            await processAttendance();
+            console.log('[CRON] Daily attendance processing completed successfully');
+        } catch (error) {
+            console.error('[CRON] Error during scheduled attendance processing:', error);
+        }
+    }, {
+        scheduled: true,
+        timezone: "Asia/Karachi" // Pakistan timezone (UTC+5)
+    });
+
+    console.log('[CRON] ✓ Daily attendance job scheduled for 7:00 AM PKT (Asia/Karachi timezone)');
+}
+
+/**
+ * Stop the cron job
+ */
+function stopCronJob() {
+    if (cronJob) {
+        cronJob.stop();
+        cronJob = null;
+        console.log('[CRON] Job stopped');
+    } else {
+        console.log('[CRON] No job running');
+    }
+}
+
+/**
+ * Get cron job status
+ */
+function getCronStatus() {
+    return {
+        isRunning: cronJob !== null,
+        schedule: '0 7 * * * (Daily at 7:00 AM PKT)',
+        timezone: 'Asia/Karachi'
+    };
+}
+
 module.exports = {
     processAttendance,
     fetchAllBiometricEvents,
     getAutomationState,
     parseTime,
     createNaiveMoment,
+    startCronJob,
+    stopCronJob,
+    getCronStatus,
     CONFIG,
 };
