@@ -62,20 +62,20 @@ app.get('/health', (req, res) => {
 });
 
 // API Routes
-app.use('/auth', authRoutes);
-app.use("/attendance-automation", attendanceAutomationRoute)
+app.use('/api/auth', authRoutes);
+app.use("/api/attendance-automation", attendanceAutomationRoute)
 app.use(authMiddleware);
-app.use('/users', userRoutes);
-app.use('/projects', projectRoutes);
-app.use('/tasklogs', tasklogRoutes);
-app.use('/reports', reportRoutes);
-app.use('/teams', teamRoutes);
+app.use('/api/users', userRoutes);
+app.use('/api/projects', projectRoutes);
+app.use('/api/tasklogs', tasklogRoutes);
+app.use('/api/reports', reportRoutes);
+app.use('/api/teams', teamRoutes);
 
 // NEW: Attendance system routes
-app.use('/system-settings', systemSettingsRoutes);
-app.use('/buffer-counter', bufferCounterRoutes);
-app.use('/attendance-system', attendanceSystemRoutes);
-app.use('/holidays', holidayRoutes);
+app.use('/api/system-settings', systemSettingsRoutes);
+app.use('/api/buffer-counter', bufferCounterRoutes);
+app.use('/api/attendance-system', attendanceSystemRoutes);
+app.use('/api/holidays', holidayRoutes);
 
 
 // 404 handler for undefined routes
