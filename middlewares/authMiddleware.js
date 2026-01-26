@@ -46,7 +46,8 @@ const authMiddleware = async (req, res, next) => {
       email: user.email,
       name: user.name,
       role: user.role,
-      isAdmin: user.isAdmin
+      isAdmin: user.isAdmin,
+      permissions: user.permissions || []
     };
 
     next();

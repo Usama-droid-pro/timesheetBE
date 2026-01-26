@@ -64,6 +64,11 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
+  permissions: {
+    type: [String],
+    default: [],
+    enum: ['canApproveManualEntries']
+  },
   tokenVersion: {
     type: Number,
     default: 0

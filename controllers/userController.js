@@ -150,7 +150,12 @@ const updateUserByAdmin = async (req, res) => {
     }
 
     console.log("req.body", req.body)
-    const { email, password, isAdmin, memberOfHW, bioMetricId, officeStartTime, officeEndTime, payoutMultiplier } = req.body;
+    const { email, password, isAdmin, memberOfHW, bioMetricId, officeStartTime, officeEndTime, payoutMultiplier, permissions } = req.body;
+
+    // Only super admin can modify permissions
+    if (permissions !== undefined && req.user.role !== 'Admin') {
+      return sendForbidden(res, 'Only super admin can manage permissions');
+    }
 
     const payload = {
       ...(typeof email !== 'undefined' ? { email } : {}),
@@ -161,6 +166,7 @@ const updateUserByAdmin = async (req, res) => {
       ...(typeof officeStartTime !== 'undefined' ? { officeStartTime } : {}),
       ...(typeof officeEndTime !== 'undefined' ? { officeEndTime } : {}),
       ...(typeof payoutMultiplier !== 'undefined' ? { payoutMultiplier } : {}),
+      ...(typeof permissions !== 'undefined' ? { permissions } : {}),
     };
 
     const user = await UserService.updateUserByAdmin(id, payload);

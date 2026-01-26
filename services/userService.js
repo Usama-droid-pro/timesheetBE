@@ -65,6 +65,7 @@ const getAllUsers = async (filters) => {
       email: user.email,
       role: user.role,
       isAdmin: user.isAdmin,
+      permissions: user.permissions || [],
       createdAt: user.createdAt,
       dob: user.dob,
       gender: user.gender,
@@ -75,6 +76,7 @@ const getAllUsers = async (filters) => {
       officeStartTime: user?.officeStartTime,
       officeEndTime: user?.officeEndTime,
       payoutMultiplier: user?.payoutMultiplier,
+      permissions : user?.permissions,
       updatedAt: user.updatedAt
     }));
   } catch (error) {
@@ -371,6 +373,20 @@ const updateUserByAdmin = async (userId, updates) => {
         user.payoutMultiplier = payoutMultiplier;
       } else {
         throw new Error('Payout Multiplier must be a number between 0 and 10');
+      }
+    }
+
+    // Handle permissions (only super admin can modify)
+    if (Object.prototype.hasOwnProperty.call(updates, 'permissions')) {
+      const permissions = updates.permissions;
+      if (Array.isArray(permissions)) {
+        // Validate permissions
+        const validPermissions = ['canApproveManualEntries'];
+        const invalidPerms = permissions.filter(p => !validPermissions.includes(p));
+        if (invalidPerms.length > 0) {
+          throw new Error(`Invalid permissions: ${invalidPerms.join(', ')}`);
+        }
+        user.permissions = permissions;
       }
     }
 

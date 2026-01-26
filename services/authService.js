@@ -26,7 +26,8 @@ const login = async (email, password) => {
         role: user.role,
         isAdmin: user?.isAdmin,
         memberOfHW: user?.memberOfHW,
-        tokenVersion: user?.tokenVersion
+        tokenVersion: user?.tokenVersion,
+        permissions: user?.permissions
 
       },
       process.env.JWT_SECRET,
@@ -45,6 +46,7 @@ const login = async (email, password) => {
       dob: user.dob,
       gender: user.gender,
       memberOfHW: user.memberOfHW,
+      permissions: user.permissions,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     };
