@@ -1599,20 +1599,36 @@ async function getGrandAttendanceReport(month, year, teamId = null, userId = nul
         });
 
         // Calculate missing days (absent days not explicitly marked)
-        // Only count weekdays up to today (or end of month if month has passed)
+        // Only count weekdays, exclude weekends and exclude today if month is ongoing
         const today = new Date();
-        let lastDayToCheck = endDate < today ? endDate : new Date(today.getFullYear(), today.getMonth(), today.getDate());
-        lastDayToCheck = lastDayToCheck.toISOString().split("T")[0] + 'T00:00:00.000Z';
-        lastDayToCheck = new Date(lastDayToCheck);
-        // Count expected weekdays
+        today.setHours(0, 0, 0, 0); // Reset to start of day for comparison
+        
+        // Determine last day to check:
+        // - If month has passed: use end of month
+        // - If month is current/future: use yesterday (exclude today since it's not complete)
+        let lastDayToCheck;
+        if (endDate < today) {
+          // Month has already passed, check until end of month
+          lastDayToCheck = new Date(endDate);
+        } else {
+          // Month is ongoing, exclude today (use yesterday)
+          lastDayToCheck = new Date(today);
+          lastDayToCheck.setDate(lastDayToCheck.getDate() - 1);
+        }
+        
+        // Ensure we don't go before the start of the month
+        if (lastDayToCheck < startDate) {
+          lastDayToCheck = new Date(startDate);
+        }
+        
+        // Count expected weekdays (Mon-Fri only)
         let expectedWeekdays = 0;
         const currentDate = new Date(startDate);
         while (currentDate <= lastDayToCheck) {
           const dayOfWeek = currentDate.getDay();
           // 0 = Sunday, 6 = Saturday - only count Mon-Fri
           if (dayOfWeek !== 0 && dayOfWeek !== 6) {
-              expectedWeekdays++;
-
+            expectedWeekdays++;
           }
           currentDate.setDate(currentDate.getDate() + 1);
         }
@@ -1622,7 +1638,7 @@ async function getGrandAttendanceReport(month, year, teamId = null, userId = nul
         recordedDays.forEach(day => {
           const date = new Date(year, month - 1, day);
           const dayOfWeek = date.getDay();
-          // Only count if it's a weekday and hasn't exceeded lastDayToCheck
+          // Only count if it's a weekday and within our check range
           if (dayOfWeek !== 0 && dayOfWeek !== 6 && date <= lastDayToCheck) {
             recordedWeekdays++;
           }
