@@ -180,6 +180,12 @@ const attendanceSystemSchema = new mongoose.Schema({
     default: false
   },
   
+  // Manual entry flag (set when marked via manual attendance API)
+  isManualEntered: {
+    type: Boolean,
+    default: false
+  },
+  
   // Second/Third Entry Tracking
   isAnotherEntry: {
     type: Boolean,

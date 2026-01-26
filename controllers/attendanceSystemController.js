@@ -342,7 +342,7 @@ async function bulkUpdateApproval(req, res) {
  */
 async function getGrandReport(req, res) {
   try {
-    const { month, year, teamId } = req.query;
+    const { month, year, teamId, userId } = req.query;
 
     // Validation
     if (!month || !year) {
@@ -360,8 +360,8 @@ async function getGrandReport(req, res) {
       return res.status(400).json({ success: false, message: 'Invalid year' });
     }
 
-    // Call service
-    const report = await getGrandAttendanceReport(monthNum, yearNum, teamId);
+    // Call service with optional userId parameter
+    const report = await getGrandAttendanceReport(monthNum, yearNum, teamId, userId);
 
     res.json(report);
   } catch (error) {

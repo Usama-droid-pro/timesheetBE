@@ -314,7 +314,7 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
         payoutMultiplier: day1Multiplier,
         approvalStatus: 'Pending',
         calculatedAt: new Date(),
-        isManualEntry: true,
+        isManualEntered: true,
         isWeekendWork: day1IsWeekend,
         isHolidayWork: day1IsHoliday,
         holidayBonusMinutes: day1HolidayBonus,
@@ -375,7 +375,7 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
         payoutMultiplier: day2Multiplier,
         approvalStatus: 'Pending',
         calculatedAt: new Date(),
-        isManualEntry: true,
+        isManualEntered: true,
         isAnotherEntry: true,
         anotherEntryDetails: {
           entryNo: 2,
@@ -429,7 +429,7 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
         payoutMultiplier: finalMultiplier,
         approvalStatus: 'Pending',
         calculatedAt: new Date(),
-        isManualEntry: true,
+        isManualEntered: true,
         isWeekendWork: isWeekendWork,
         isHolidayWork: isHolidayWork,
         holidayBonusMinutes: holidayBonusMinutes,
@@ -507,7 +507,7 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
         payoutMultiplier: day1Multiplier,
         approvalStatus: 'Pending',
         calculatedAt: new Date(),
-        isManualEntry: true,
+        isManualEntered: true,
         isWeekendWork: day1IsWeekend,
         isHolidayWork: day1IsHoliday,
         holidayBonusMinutes: day1HolidayBonus,
@@ -568,7 +568,7 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
         payoutMultiplier: day2Multiplier,
         approvalStatus: 'Pending',
         calculatedAt: new Date(),
-        isManualEntry: true,
+        isManualEntered: true,
         isAnotherEntry: true,
         anotherEntryDetails: {
           entryNo: 2,
@@ -1493,13 +1493,19 @@ async function bulkUpdateStatus(recordIds, status, note = null) {
  * @param {number} month - Month (1-12)
  * @param {number} year - Year
  * @param {string} teamId - Optional team filter
+ * @param {string} userId - Optional user filter (for specific user report)
  */
-async function getGrandAttendanceReport(month, year, teamId = null) {
+async function getGrandAttendanceReport(month, year, teamId = null, userId = null) {
   try {
-    // 1. Get all users (filtered by team if provided)
+    // 1. Get all users (filtered by team if provided or specific user)
     let dataFound = false;
     let users;
-    if (teamId) {
+    
+    if (userId) {
+      // Specific user requested
+      const user = await User.findById(userId);
+      users = user ? [user] : [];
+    } else if (teamId) {
       const team = await Team.findById(teamId).populate('members');
       users = team ? team.members : [];
     } else {
@@ -1534,6 +1540,8 @@ async function getGrandAttendanceReport(month, year, teamId = null) {
         let absentDays = 0;
         let leaveDays = 0;
         let holidayBonusHours = 0;
+        let manualEntriesCount = 0;
+        let lateDaysCount = 0;
 
         // Track which days have records
         const recordedDays = new Set();
@@ -1577,6 +1585,16 @@ async function getGrandAttendanceReport(month, year, teamId = null) {
             rejectedHours += record.extraHoursMinutes || 0;
           } else if (record.approvalStatus === 'Pending' || record.approvalStatus === 'NA') {
             pendingHours += record.extraHoursMinutes || 0;
+          }
+          
+          // Count manual entries
+          if (record.isManualEntered) {
+            manualEntriesCount++;
+          }
+          
+          // Count late arrivals
+          if (record.ruleApplied && record.ruleApplied.isLate) {
+            lateDaysCount++;
           }
         });
 
@@ -1631,6 +1649,8 @@ async function getGrandAttendanceReport(month, year, teamId = null) {
           absentDays,
           leaveDays,
           holidayBonusHours, // Separate holiday bonus
+          manualEntriesCount, // New metric
+          lateDaysCount, // New metric
           breakdown: {
             doublePaidHours,
             singlePaidHours,
