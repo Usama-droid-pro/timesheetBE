@@ -57,6 +57,8 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
         date: toUTCDateFromYMD(date)
       });
 
+      console.log("exists",exists)
+
       if (exists) {
         throw new Error('Attendance record already exists for this date');
       }
@@ -1691,6 +1693,44 @@ async function getGrandAttendanceReport(month, year, teamId = null, userId = nul
   }
 }
 
+/**
+ * Update description for an attendance entry
+ * Only the owner can update, and only for entries with extra hours
+ */
+async function updateAttendanceDescription(attendanceId, userId, description) {
+  try {
+    // Find the attendance record
+    const attendance = await AttendanceSystem.findById(attendanceId);
+    
+    if (!attendance) {
+      throw new Error('Attendance record not found');
+    }
+    
+    // Verify ownership - user can only update their own entries
+    if (attendance?.userId?.toString() !== userId?.toString()) {
+      throw new Error('You can only update descriptions for your own attendance entries');
+    }
+    
+    // Verify entry has extra hours
+    if (!attendance.extraHoursMinutes || attendance.extraHoursMinutes <= 0) {
+      throw new Error('Descriptions can only be added to entries with extra hours');
+    }
+    
+    // Update description
+    attendance.description = description.trim();
+    await attendance.save();
+    
+    return {
+      success: true,
+      message: 'Description updated successfully',
+      attendance
+    };
+  } catch (error) {
+    console.error('Error updating attendance description:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   getAttendanceRecords,
   getAttendanceByUser,
@@ -1705,5 +1745,6 @@ module.exports = {
   addSecondEntryService,
   deleteAttendanceEntry,
   adjustAttendanceHours,
-  markDayAsLeaveOrAbsent
+  markDayAsLeaveOrAbsent,
+  updateAttendanceDescription
 };

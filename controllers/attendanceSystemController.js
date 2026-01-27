@@ -12,7 +12,8 @@ const {
   addSecondEntryService,
   deleteAttendanceEntry,
   adjustAttendanceHours,
-  markDayAsLeaveOrAbsent
+  markDayAsLeaveOrAbsent,
+  updateAttendanceDescription
 } = require('../services/attendanceSystemService');
 
 /**
@@ -374,6 +375,48 @@ async function getGrandReport(req, res) {
   }
 }
 
+/**
+ * @route   PATCH /api/attendance-system/:id/description
+ * @desc    Update work description for attendance entry
+ * @access  Private (Owner only)
+ */
+async function updateDescription(req, res) {
+  try {
+    const { id } = req.params;
+    const { description } = req.body;
+    console.log(req.user)
+    const userId = req.user?.id // Get from auth middleware or body
+
+    if(!userId){
+      return res.status(400).json({ success: false, message: 'User ID is required' });
+    }
+
+    if (!description || !description.trim()) {
+      return res.status(400).json({ success: false, message: 'Description is required' });
+    }
+
+    const result = await updateAttendanceDescription(id, userId, description);
+
+    res.json({ 
+      success: true, 
+      message: result.message,
+      data: result.attendance
+    });
+  } catch (error) {
+    console.error('Error updating description:', error);
+    
+    // Handle specific error messages
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ success: false, message: error.message });
+    }
+    if (error.message.includes('only update') || error.message.includes('only be added')) {
+      return res.status(403).json({ success: false, message: error.message });
+    }
+    
+    res.status(500).json({ success: false, message: 'Failed to update description', error: error.message });
+  }
+}
+
 module.exports = {
   getRecords,
   getUserRecords,
@@ -388,5 +431,6 @@ module.exports = {
   addSecondEntry,
   deleteEntry,
   adjustHours,
-  markLeaveOrAbsent
+  markLeaveOrAbsent,
+  updateDescription
 };

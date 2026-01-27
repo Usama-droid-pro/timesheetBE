@@ -1,6 +1,7 @@
 const ManualAttendanceRequest = require('../models/ManualAttendanceRequest');
 const User = require('../models/User');
 const Team = require('../models/Team');
+const AttendanceSystem = require('../models/AttendanceSystem');
 const { markManualAttendanceService } = require('./attendanceSystemService');
 const moment = require('moment');
 const ObjectId = require('mongoose').Types.ObjectId;
@@ -15,7 +16,6 @@ async function createRequest(userId, date, checkInTime, checkOutTime, reason, op
       throw new Error('User not found');
     }
 
-        console.log("requesetdby" , requestedBy)
 
 
 
@@ -30,11 +30,33 @@ async function createRequest(userId, date, checkInTime, checkOutTime, reason, op
     const existingRequest = await ManualAttendanceRequest.findOne({
       userId,
       date: new Date(date),
-      status: { $in: ['Pending', 'Approved'] }
+      status: { $in: ['Pending'] }
     });
 
+    console.log("existingRequest" , existingRequest)
+
     if (existingRequest) {
-      throw new Error('A request already exists for this date');
+      throw new Error('A pending request already exists for this date');
+    }
+
+    // Check if attendance entry already exists
+    const existingEntry = await AttendanceSystem.findOne({
+      userId,
+      date: new Date(date)
+    });
+
+    if (existingEntry) {
+      let entryType = 'Main entry';
+      
+      if (existingEntry.isPaidLeave) {
+        entryType = 'Paid Leave entry';
+      } else if (existingEntry.isAbsent) {
+        entryType = 'Absent entry';
+      }
+      
+      throw new Error(
+        `${entryType} already exists for this date. To add work hours, create a sub-entry (another entry) instead.`
+      );
     }
 
     // Create request
@@ -219,10 +241,44 @@ async function rejectRequest(requestId, reviewerId, reviewNote = '') {
   }
 }
 
+/**
+ * Delete a manual attendance request (pending only)
+ */
+async function deleteRequest(requestId, userId) {
+  try {
+    // Find the request
+    const request = await ManualAttendanceRequest.findById(requestId);
+    if (!request) {
+      throw new Error('Request not found');
+    }
+
+    // Verify ownership - user can only delete their own requests
+    if (request.requestedBy.toString() !== userId.toString()) {
+      throw new Error('You can only delete your own requests');
+    }
+
+    // Only allow deletion of pending requests
+    if (request.status !== 'Pending') {
+      throw new Error('Only pending requests can be deleted');
+    }
+
+    await ManualAttendanceRequest.findByIdAndDelete(requestId);
+
+    return {
+      success: true,
+      message: 'Request deleted successfully'
+    };
+  } catch (error) {
+    console.error('Error deleting request:', error);
+    throw error;
+  }
+}
+
 module.exports = {
   createRequest,
   getAllRequests,
   getMyRequests,
   approveRequest,
-  rejectRequest
+  rejectRequest,
+  deleteRequest
 };

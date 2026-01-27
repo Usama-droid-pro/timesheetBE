@@ -13,7 +13,8 @@ const {
   addSecondEntry,
   deleteEntry,
   adjustHours,
-  markLeaveOrAbsent
+  markLeaveOrAbsent,
+  updateDescription
 } = require('../controllers/attendanceSystemController');
 
 
@@ -34,6 +35,7 @@ router.put('/:id/approval', updateApproval);
 router.patch('/bulk-approval', bulkUpdateApproval); // Bulk approval/rejection
 router.patch('/:id/ignore-deduction', require('../controllers/attendanceSystemController').updateIgnoreDeduction);
 router.patch('/:id/adjust-hours', adjustHours);
+router.patch('/:id/description', updateDescription); // Update work description
 router.delete('/:id', deleteEntry);
 
 

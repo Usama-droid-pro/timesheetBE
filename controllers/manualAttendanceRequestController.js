@@ -128,10 +128,44 @@ const rejectRequest = async (req, res) => {
   }
 };
 
+/**
+ * Delete a manual attendance request (pending only)
+ */
+const deleteRequest = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const userId = req.user?.id;
+
+    if (!userId) {
+      return sendError(res, 'User ID is required', null, 400);
+    }
+
+    if (!id) {
+      return sendError(res, 'Request ID is required', null, 400);
+    }
+
+    const result = await manualAttendanceRequestService.deleteRequest(id, userId);
+
+    return sendSuccess(res, result.message, null, 200);
+  } catch (error) {
+    console.error('Delete request error:', error);
+    
+    if (error.message.includes('not found')) {
+      return sendError(res, error.message, null, 404);
+    }
+    if (error.message.includes('only delete') || error.message.includes('Only pending')) {
+      return sendError(res, error.message, null, 403);
+    }
+    
+    return sendError(res, 'Failed to delete request', error.message, 500);
+  }
+};
+
 module.exports = {
   createRequest,
   getRequests,
   getMyRequests,
   approveRequest,
-  rejectRequest
+  rejectRequest,
+  deleteRequest
 };

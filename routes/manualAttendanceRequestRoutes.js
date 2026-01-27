@@ -20,4 +20,7 @@ router.put('/:id/approve', authMiddleware, checkPermission('canApproveManualEntr
 // Reject request - requires permission
 router.put('/:id/reject', authMiddleware, checkPermission('canApproveManualEntries'), manualAttendanceRequestController.rejectRequest);
 
+// Delete request - user can delete their own pending requests
+router.delete('/:id', authMiddleware, manualAttendanceRequestController.deleteRequest);
+
 module.exports = router;
