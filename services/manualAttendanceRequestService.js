@@ -112,6 +112,7 @@ async function getAllRequests(filters = {}) {
 async function getMyRequests(userId) {
   try {
     const requests = await ManualAttendanceRequest.find({ requestedBy: userId })
+      .populate('userId', 'name email profilePic role')
       .populate('requestedBy', 'name email')
       .populate('reviewedBy', 'name email')
       .sort({ requestedAt: -1 });
