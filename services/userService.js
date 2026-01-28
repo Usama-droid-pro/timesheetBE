@@ -288,6 +288,14 @@ const updateUser = async (userId, updates) => {
       phone: user.phone,
       dob: user.dob,
       gender: user.gender,
+      active: user.active,
+      isAdmin: user.isAdmin,
+      memberOfHW: user.memberOfHW,
+      bioMetricId: user.bioMetricId,
+      officeStartTime: user.officeStartTime,
+      officeEndTime: user.officeEndTime,
+      payoutMultiplier: user.payoutMultiplier,
+      permissions : user.permissions,
       profilePic: user.profilePic,
       updatedAt: user.updatedAt
     };
