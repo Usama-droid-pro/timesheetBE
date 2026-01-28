@@ -1007,8 +1007,9 @@ async function addSecondEntryService(userId, date, checkInTime, checkOutTime) {
     }
 
     const settings = await getActiveSettings();
-    const bufferCounter = await getCurrentMonthCounter(user._id, workDate);
     const workDate = date + "T00:00:00.000Z";
+        const bufferCounter = await getCurrentMonthCounter(user._id, workDate);
+
 
     // Get user's office hours (or defaults)
     const officeStart = settings.forceDefaultOfficeHours 

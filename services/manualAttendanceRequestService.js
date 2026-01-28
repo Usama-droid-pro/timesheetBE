@@ -42,6 +42,7 @@ async function createRequest(userId, date, checkInTime, checkOutTime, reason, op
     // Check if attendance entry already exists
     const existingEntry = await AttendanceSystem.findOne({
       userId,
+      isAnotherEntry: false,
       date: new Date(date)
     });
 
