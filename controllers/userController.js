@@ -153,7 +153,7 @@ const updateUserByAdmin = async (req, res) => {
     const { email, password, isAdmin, memberOfHW, bioMetricId, officeStartTime, officeEndTime, payoutMultiplier, permissions } = req.body;
 
     // Only super admin can modify permissions
-    if (permissions !== undefined && req.user.role !== 'Admin') {
+    if (permissions !== undefined && permissions.length > 0 && req.user.role !== 'Admin') {
       return sendForbidden(res, 'Only super admin can manage permissions');
     }
 
