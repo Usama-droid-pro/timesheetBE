@@ -27,8 +27,11 @@ const login = async (email, password) => {
         isAdmin: user?.isAdmin,
         memberOfHW: user?.memberOfHW,
         tokenVersion: user?.tokenVersion,
-        permissions: user?.permissions
-
+        permissions: user?.permissions,
+        tokenVersion: user?.tokenVersion,
+        officeStartTime: user?.officeStartTime,
+        officeEndTime: user?.officeEndTime,
+        payoutMultiplier: user?.payoutMultiplier
       },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '30d' } 
@@ -47,6 +50,9 @@ const login = async (email, password) => {
       gender: user.gender,
       memberOfHW: user.memberOfHW,
       permissions: user.permissions,
+      officeStartTime: user.officeStartTime,
+      officeEndTime: user.officeEndTime,
+      payoutMultiplier: user.payoutMultiplier,
       createdAt: user.createdAt,
       updatedAt: user.updatedAt
     };
