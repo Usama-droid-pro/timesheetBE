@@ -34,6 +34,7 @@ async function create(req, res) {
       reducedBufferMinutes,
       defaultOfficeStartTime,
       defaultOfficeEndTime,
+      forceDefaultOfficeHours,
       effectiveFrom
     } = req.body;
 
@@ -44,6 +45,7 @@ async function create(req, res) {
       reducedBufferMinutes,
       defaultOfficeStartTime,
       defaultOfficeEndTime,
+      forceDefaultOfficeHours,
       effectiveFrom
     }, req.user.id);
 

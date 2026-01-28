@@ -41,6 +41,11 @@ const systemSettingsSchema = new mongoose.Schema({
     default: '19:00',
     match: /^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/
   },
+  forceDefaultOfficeHours: {
+    type: Boolean,
+    default: false,
+    required: true
+  },
   version: {
     type: Number,
     required: true,

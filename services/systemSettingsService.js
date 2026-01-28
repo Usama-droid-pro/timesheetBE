@@ -62,6 +62,7 @@ async function updateSettings(id, data, adminId) {
       reducedBufferMinutes: data.reducedBufferMinutes || currentSettings.reducedBufferMinutes,
       defaultOfficeStartTime: data.defaultOfficeStartTime || currentSettings.defaultOfficeStartTime,
       defaultOfficeEndTime: data.defaultOfficeEndTime || currentSettings.defaultOfficeEndTime,
+      forceDefaultOfficeHours: data.forceDefaultOfficeHours !== undefined ? data.forceDefaultOfficeHours : currentSettings.forceDefaultOfficeHours,
       effectiveFrom: data.effectiveFrom || new Date(),
       lastAttendanceFetchedDate: data.lastAttendanceFetchedDate || currentSettings.lastAttendanceFetchedDate
     }, adminId);

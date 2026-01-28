@@ -78,8 +78,12 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
     const bufferCounter = await getCurrentMonthCounter(user._id, workDate);
 
     // 3. Time parsing & Setup
-    const officeStart = user.officeStartTime || settings.defaultOfficeStartTime;
-    const officeEnd = user.officeEndTime || settings.defaultOfficeEndTime;
+    const officeStart = settings.forceDefaultOfficeHours 
+      ? settings.defaultOfficeStartTime 
+      : (user.officeStartTime || settings.defaultOfficeStartTime);
+    const officeEnd = settings.forceDefaultOfficeHours 
+      ? settings.defaultOfficeEndTime 
+      : (user.officeEndTime || settings.defaultOfficeEndTime);
 
     // Create moments - IMPORTANT: Use workDate from frontend, don't let system change timezone
     const start = createNaiveMoment(`${workDate} ${officeStart}:00`);
@@ -1003,11 +1007,16 @@ async function addSecondEntryService(userId, date, checkInTime, checkOutTime) {
     }
 
     const settings = await getActiveSettings();
+    const bufferCounter = await getCurrentMonthCounter(user._id, workDate);
     const workDate = date + "T00:00:00.000Z";
 
-    // 2. Get user's office hours
-    const officeStart = user.officeStartTime || settings.defaultOfficeStartTime;
-    const officeEnd = user.officeEndTime || settings.defaultOfficeEndTime;
+    // Get user's office hours (or defaults)
+    const officeStart = settings.forceDefaultOfficeHours 
+      ? settings.defaultOfficeStartTime 
+      : (user.officeStartTime || settings.defaultOfficeStartTime);
+    const officeEnd = settings.forceDefaultOfficeHours 
+      ? settings.defaultOfficeEndTime 
+      : (user.officeEndTime || settings.defaultOfficeEndTime);
 
     // 3. Parse times
     const checkIn = createNaiveMoment(`${workDate} ${checkInTime}:00`);

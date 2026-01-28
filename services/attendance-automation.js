@@ -139,6 +139,7 @@ async function fetchBiometricEvents(startTime, endTime, searchResultPosition = 0
                 method: 'POST',
                 body: JSON.stringify(requestBody),
             });
+            console.log(response)
 
             if (!response.ok) {
                 const text = await response.text();
@@ -154,6 +155,7 @@ async function fetchBiometricEvents(startTime, endTime, searchResultPosition = 0
             return response.data;
         }
     } catch (error) {
+        console.log(error)
         console.error('[API] Error fetching biometric events:', error.message);
         throw error;
     }
@@ -248,8 +250,12 @@ async function calculateAttendanceRecords(group) {
         const settings = await getActiveSettings();
 
         // Get user's office hours (or defaults)
-        const officeStart = user.officeStartTime || settings.defaultOfficeStartTime;
-        const officeEnd = user.officeEndTime || settings.defaultOfficeEndTime;
+        const officeStart = settings.forceDefaultOfficeHours 
+          ? settings.defaultOfficeStartTime 
+          : (user.officeStartTime || settings.defaultOfficeStartTime);
+        const officeEnd = settings.forceDefaultOfficeHours 
+          ? settings.defaultOfficeEndTime 
+          : (user.officeEndTime || settings.defaultOfficeEndTime);
 
         // Get buffer counter for the work date's month (not current month)
         const bufferCounter = await getCurrentMonthCounter(user._id, workDate);
