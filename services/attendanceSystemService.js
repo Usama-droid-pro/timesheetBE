@@ -717,7 +717,7 @@ async function updateApprovalStatus(id, status, note = null) {
     // Weekends don't use buffer rules, so approval/rejection shouldn't affect buffer counter
     if (!record.isWeekendWork) {
       // Buffer logic on rejection
-      if (status === 'Rejected' && record.ruleApplied.isBufferUsed && !record.bufferIncrementedThisDay) {
+      if (status === 'Rejected' && record.ruleApplied.isBufferUsed && !record.bufferIncrementedThisDay && !record.ruleApplied.isBufferAbused) {
         const counter = await incrementBufferCounter(record.userId, record.date);
         record.bufferIncrementedThisDay = true;
         record.bufferCountAtCalculation = counter.bufferUseCount;
@@ -1440,7 +1440,7 @@ async function bulkUpdateStatus(recordIds, status, note = null) {
         }
 
         // Buffer logic (same as single update but tracking changes)
-        if (status === 'Rejected' && record.ruleApplied.isBufferUsed && !record.bufferIncrementedThisDay) {
+        if (status === 'Rejected' && record.ruleApplied.isBufferUsed && !record.bufferIncrementedThisDay && !record.ruleApplied.isBufferAbused) {
           const counter = await incrementBufferCounter(userId, record.date);
           record.bufferIncrementedThisDay = true;
           record.bufferCountAtCalculation = counter.bufferUseCount;
