@@ -712,13 +712,17 @@ async function updateApprovalStatus(id, status, note = null) {
     const previousStatus = record.approvalStatus;
     record.approvalStatus = status;
     if (note) record.note = note;
+    const userBufferCount = await getCurrentMonthCounter(record.userId, record.date);
+    console.log("userBufferCount" , userBufferCount)
 
     // Skip buffer logic entirely for weekend work
     // Weekends don't use buffer rules, so approval/rejection shouldn't affect buffer counter
     if (!record.isWeekendWork) {
       // Buffer logic on rejection
-      if (status === 'Rejected' && record.ruleApplied.isBufferUsed && !record.bufferIncrementedThisDay && !record.ruleApplied.isBufferAbused) {
-        const counter = await incrementBufferCounter(record.userId, record.date);
+      if (status === 'Rejected' && record.ruleApplied.isBufferUsed && !record.bufferIncrementedThisDay) {
+        console.log("record" , record)
+        if(!userBufferCount.bufferAbusedReached){
+           const counter = await incrementBufferCounter(record.userId, record.date);
         record.bufferIncrementedThisDay = true;
         record.bufferCountAtCalculation = counter.bufferUseCount;
         await record.save()
@@ -727,12 +731,14 @@ async function updateApprovalStatus(id, status, note = null) {
         if (counter.bufferAbusedReached) {
           await applyRetroactiveBufferDeductions(record.userId, record.date);
         }
+        }
+       
       }
       // Buffer logic on status reversion (Rejected -> anything else)
       else if (status !== 'Rejected' && record.ruleApplied.isBufferUsed && record.bufferIncrementedThisDay) {
         // Find if user was in abuse mode before decrementing
-        console.log("inside")
         // Pass record.date to get correct month's counter
+        
         const counterBefore = await getCurrentMonthCounter(record.userId, record.date);
         const wasAbused = counterBefore.bufferAbusedReached;
 
@@ -1386,6 +1392,7 @@ async function bulkUpdateStatus(recordIds, status, note = null) {
       throw new Error('No records found with the provided IDs');
     }
 
+
     // 1.5 VALIDATE: All records must be from the same month
     const months = new Set(records.map(r => {
       const date = new Date(r.date);
@@ -1439,16 +1446,21 @@ async function bulkUpdateStatus(recordIds, status, note = null) {
           continue;
         }
 
+        const userBufferCount = await getCurrentMonthCounter(userId, record.date);
+
         // Buffer logic (same as single update but tracking changes)
-        if (status === 'Rejected' && record.ruleApplied.isBufferUsed && !record.bufferIncrementedThisDay && !record.ruleApplied.isBufferAbused) {
-          const counter = await incrementBufferCounter(userId, record.date);
-          record.bufferIncrementedThisDay = true;
-          record.bufferCountAtCalculation = counter.bufferUseCount;
-          bufferChanges++;
-          
-          // Check if this push triggered buffer abuse
-          if (counter.bufferAbusedReached && !wasAbusedInitially) {
-            needsRetroactive = true;
+        if (status === 'Rejected' && record.ruleApplied.isBufferUsed && !record.bufferIncrementedThisDay) {
+          // Only increment if buffer limit hasn't been reached yet
+          if (!userBufferCount.bufferAbusedReached) {
+            const counter = await incrementBufferCounter(userId, record.date);
+            record.bufferIncrementedThisDay = true;
+            record.bufferCountAtCalculation = counter.bufferUseCount;
+            bufferChanges++;
+            
+            // Check if this push triggered buffer abuse
+            if (counter.bufferAbusedReached && !wasAbusedInitially) {
+              needsRetroactive = true;
+            }
           }
         }
         else if (status !== 'Rejected' && record.ruleApplied.isBufferUsed && record.bufferIncrementedThisDay) {
