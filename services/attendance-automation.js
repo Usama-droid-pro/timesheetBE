@@ -102,7 +102,7 @@ function createNaiveMoment(dateStr, format = 'YYYY-MM-DD HH:mm:ss') {
 
 /**
  * Check if a date is a weekend (Saturday or Sunday)
- * @param {string} dateStr - Date string in YYYY-MM-DD format
+ * @param {string} dateStr - Date string in YYYY-MM-DD formats
  * @returns {boolean} - True if weekend, false otherwise
  */
 function isWeekend(dateStr) {
@@ -524,6 +524,7 @@ async function attendanceRecordExists(userId, date) {
     try {
         const exists = await AttendanceSystem.findOne({
             userId,
+            isAnotherEntry: false,
             date: toUTCDateFromYMD(date)
         });
         return !!exists;

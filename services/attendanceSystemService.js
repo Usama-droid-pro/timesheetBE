@@ -54,6 +54,7 @@ async function markManualAttendanceService(userId, date, checkInTime, checkOutTi
     } else {
       const exists = await AttendanceSystem.findOne({
         userId,
+        isAnotherEntry: false,
         date: toUTCDateFromYMD(date)
       });
 
