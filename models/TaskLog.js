@@ -34,7 +34,7 @@ const taskLogSchema = new mongoose.Schema({
     description: {
       type: String,
       trim: true,
-      maxlength: [1000, 'Task description cannot exceed 1000 characters']
+      maxlength: [10000, 'Task description cannot exceed 10000 characters']
     },
     hours: {
       type: Number,
